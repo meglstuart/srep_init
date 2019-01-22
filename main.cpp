@@ -7,10 +7,13 @@
 #include <iostream>
 #include <string>
 
+#include "srep_init.h"
+
 int main(int argc, char *argv[])
 {
   Eigen::MatrixXd V;
   Eigen::MatrixXi F;
+
 
   // Load a mesh in OFF format
 
@@ -26,6 +29,7 @@ int main(int argc, char *argv[])
   double smoothAmount = 0.1f;
   int maxIter = 10;
   std::string inputMesh = "../test_data/bunny.off";
+  srep_init *init = new srep_init(dt, smoothAmount, maxIter);
 
   // igl::readOFF(inputMesh, V, F);
 
@@ -41,12 +45,14 @@ int main(int argc, char *argv[])
       float p = ImGui::GetStyle().FramePadding.x;
       if (ImGui::Button("Load##Mesh", ImVec2((w-p)/2.f, 0)))
       {
-        inputMesh = igl::file_dialog_open();
-        if(inputMesh.length() != 0)
+        init->inputMesh = igl::file_dialog_open();
+        if(init->inputMesh.length() != 0)
         {
-          igl::readOFF(inputMesh, V, F);
-          viewer.data().clear();
-          viewer.data().set_mesh(V, F);
+          viewer.load_mesh_from_file(init->inputMesh.c_str());
+          init->process_inputMesh();
+          // igl::readOFF(init->inputMesh, V, F);
+          // viewer.data().clear();
+          // viewer.data().set_mesh(V, F);
         }
       }
 
@@ -142,20 +148,9 @@ int main(int argc, char *argv[])
     if (ImGui::CollapsingHeader("Forward Flow", ImGuiTreeNodeFlags_DefaultOpen))
     {
       // Expose variable directly ...
-      ImGui::InputDouble("dt", &dt, 0, 0, "%.4f");
-      ImGui::InputDouble("smoothAmount", &smoothAmount, 0, 0, "%.4f");
-      ImGui::InputInt("maxIter", &maxIter);
-      // ImGui::InputText("inputMesh", inputMesh);
-      if (ImGui::Button("Open Input Mesh", ImVec2(-1,0)))
-      {
-        inputMesh = igl::file_dialog_open();
-        if(inputMesh.length() != 0)
-        {
-          igl::readOFF(inputMesh, V, F);
-          viewer.data().clear();
-          viewer.data().set_mesh(V, F);
-        }
-      }
+      ImGui::InputDouble("dt", &(init->dt), 0, 0, "%.4f");
+      ImGui::InputDouble("smoothAmount", &(init->smoothAmount), 0, 0, "%.4f");
+      ImGui::InputInt("maxIter", &(init->maxIter));
 
       // Add Step Button
       if (ImGui::Button("Step Forward Flow Once", ImVec2(-1,0)))
@@ -164,29 +159,6 @@ int main(int argc, char *argv[])
       }
     }
   };
-
-  // // Draw additional windows
-  // menu.callback_draw_custom_window = [&]()
-  // {
-  //   // Define next window position + size
-  //   ImGui::SetNextWindowPos(ImVec2(180.f * menu.menu_scaling(), 10), ImGuiSetCond_FirstUseEver);
-  //   ImGui::SetNextWindowSize(ImVec2(200, 160), ImGuiSetCond_FirstUseEver);
-  //   ImGui::Begin(
-  //       "New Window", nullptr,
-  //       ImGuiWindowFlags_NoSavedSettings
-  //   );
-  //
-  //
-  //   // Expose the same variable directly ...
-  //   ImGui::PushItemWidth(-80);
-  //   // ImGui::DragScalar("double", ImGuiDataType_Double, &doubleVariable, 0.1, 0, 0, "%.4f");
-  //   ImGui::PopItemWidth();
-  //
-  //   static std::string str = "bunny";
-  //   ImGui::InputText("Name", str);
-  //
-  //   ImGui::End();
-  // };
 
   // Plot the mesh
   // viewer.data().set_mesh(V, F);

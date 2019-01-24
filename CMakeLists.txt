@@ -10,7 +10,10 @@ option(LIBIGL_WITH_OPENGL_GLFW_IMGUI       "Use GLFW IMGUI"           ON)
 
 find_package(LIBIGL REQUIRED QUIET)
 
+find_package(VTK REQUIRED)
+include(${VTK_USE_FILE})
+
 # Add your project files
 file(GLOB SRCFILES *.cpp)
 add_executable(${PROJECT_NAME} ${SRCFILES})
-target_link_libraries(${PROJECT_NAME} igl::core igl::opengl_glfw igl::opengl_glfw_imgui)
+target_link_libraries(${PROJECT_NAME} igl::core igl::opengl_glfw igl::opengl_glfw_imgui ${VTK_LIBRARIES})

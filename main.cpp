@@ -1,4 +1,4 @@
-#include <igl/readOFF.h>
+#include <igl/remove_duplicate_vertices.h>
 #include <igl/opengl/glfw/Viewer.h>
 #include <igl/opengl/glfw/imgui/ImGuiMenu.h>
 #include <igl/opengl/glfw/imgui/ImGuiHelpers.h>
@@ -11,8 +11,6 @@
 
 int main(int argc, char *argv[])
 {
-  Eigen::MatrixXd V;
-  Eigen::MatrixXi F;
 
 
   // Load a mesh in OFF format
@@ -48,11 +46,14 @@ int main(int argc, char *argv[])
         init->inputMesh = igl::file_dialog_open();
         if(init->inputMesh.length() != 0)
         {
+          Eigen::MatrixXd newV;
+          Eigen::MatrixXi newF, SVI, SVJ;
+          double eps = 0;
           viewer.load_mesh_from_file(init->inputMesh.c_str());
-          init->process_inputMesh();
-          // igl::readOFF(init->inputMesh, V, F);
-          // viewer.data().clear();
-          // viewer.data().set_mesh(V, F);
+          igl::remove_duplicate_vertices(viewer.data().V,viewer.data().F,eps,newV,SVI,SVJ,newF);
+          init->set_mesh(newV, newF);
+          viewer.data().clear();
+          viewer.data().set_mesh(newV, newF);
         }
       }
 
@@ -153,9 +154,17 @@ int main(int argc, char *argv[])
       ImGui::InputInt("maxIter", &(init->maxIter));
 
       // Add Step Button
+      if (ImGui::Button("Reset Mesh", ImVec2(-1,0)))
+      {
+        init->U = init->V;
+        init->iter = 0;
+        init->q = 1;
+        init->update_viewer(&viewer);
+      }
       if (ImGui::Button("Step Forward Flow Once", ImVec2(-1,0)))
       {
-        std::cout << "Step\n";
+        init->step_forwardflow();
+        init->update_viewer(&viewer);
       }
     }
   };

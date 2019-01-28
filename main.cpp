@@ -2,6 +2,7 @@
 #include <igl/opengl/glfw/Viewer.h>
 #include <igl/opengl/glfw/imgui/ImGuiMenu.h>
 #include <igl/opengl/glfw/imgui/ImGuiHelpers.h>
+#include <igl/readSTL.h>
 #include <imgui/imgui.h>
 
 #include <iostream>
@@ -23,13 +24,13 @@ int main(int argc, char *argv[])
   viewer.plugins.push_back(&menu);
 
   // Variables to be defined using the menu
-  double dt = 0.1f;
-  double smoothAmount = 0.1f;
-  int maxIter = 10;
-  std::string inputMesh = "../test_data/bunny.off";
-  srep_init *init = new srep_init(dt, smoothAmount, maxIter);
+  double dt = 0.001f;
+  double smoothAmount = 0.001f;
+  int max_iter = 10;
+  std::string input_mesh = "../test_data/bunny.off";
+  srep_init *init = new srep_init(dt, smoothAmount, max_iter);
 
-  // igl::readOFF(inputMesh, V, F);
+  // igl::readOFF(input_mesh, V, F);
 
   // Add content to the default menu window
   menu.callback_draw_viewer_menu = [&]()
@@ -43,13 +44,39 @@ int main(int argc, char *argv[])
       float p = ImGui::GetStyle().FramePadding.x;
       if (ImGui::Button("Load##Mesh", ImVec2((w-p)/2.f, 0)))
       {
-        init->inputMesh = igl::file_dialog_open();
-        if(init->inputMesh.length() != 0)
+        init->input_mesh = igl::file_dialog_open();
+        if(init->input_mesh.length() != 0)
         {
           Eigen::MatrixXd newV;
           Eigen::MatrixXi newF, SVI, SVJ;
           double eps = 0;
-          viewer.load_mesh_from_file(init->inputMesh.c_str());
+          size_t last_dot = init->input_mesh.rfind('.');
+          if (last_dot == std::string::npos)
+          {
+            std::cerr<<"Error: No file extension found in "<<
+            init->input_mesh<<std::endl;
+            return false;
+          }
+
+          std::string extension = init->input_mesh.substr(last_dot+1);
+
+          if (extension == "stl" || extension =="STL")
+          {
+            Eigen::MatrixXd V, N;
+            Eigen::MatrixXi F;
+            if (!igl::readSTL(init->input_mesh, V, F, N))
+            {
+              std::cerr<<"failed to read stl"<<std::endl;
+              return false;
+            }
+            viewer.data().set_mesh(V,F);
+            viewer.data().compute_normals();
+            viewer.core.align_camera_center(V,F);
+          }
+          else
+          {
+            viewer.load_mesh_from_file(init->input_mesh.c_str());
+          }
           igl::remove_duplicate_vertices(viewer.data().V,viewer.data().F,eps,newV,SVI,SVJ,newF);
           init->set_mesh(newV, newF);
           viewer.data().clear();
@@ -148,10 +175,13 @@ int main(int argc, char *argv[])
     // Add new group
     if (ImGui::CollapsingHeader("Forward Flow", ImGuiTreeNodeFlags_DefaultOpen))
     {
+      float w = ImGui::GetContentRegionAvailWidth();
+      float p = ImGui::GetStyle().FramePadding.x;
       // Expose variable directly ...
       ImGui::InputDouble("dt", &(init->dt), 0, 0, "%.4f");
       ImGui::InputDouble("smoothAmount", &(init->smoothAmount), 0, 0, "%.4f");
-      ImGui::InputInt("maxIter", &(init->maxIter));
+      ImGui::InputDouble("Per-vertex best-fitting-ellipsoid tolerance", &(init->tol), 0, 0, "%.4f");
+      ImGui::InputInt("max Iterations", &(init->max_iter));
 
       // Add Step Button
       if (ImGui::Button("Reset Mesh", ImVec2(-1,0)))
@@ -164,7 +194,34 @@ int main(int argc, char *argv[])
       if (ImGui::Button("Step Forward Flow Once", ImVec2(-1,0)))
       {
         init->step_forwardflow();
+        init->write_ellipsoid();
         init->update_viewer(&viewer);
+      }
+      if (ImGui::Button("Run Foward Flow", ImVec2(-1,0)))
+      {
+        while(init->q > init->tol && init->iter < init->max_iter)
+        {
+          init->step_forwardflow();
+          std::cout<<"Iteration "<<init->iter<<": error = "<<init->q<<std::endl;
+        }
+        init->update_viewer(&viewer);
+        init->write_ellipsoid();
+      }
+      if (ImGui::Button("Show Ellipsoid", ImVec2((w-p)/2.f, 0)))
+      {
+        viewer.data().clear();
+        viewer.data().set_mesh(init->ell_U, init->ell_F);
+        viewer.data().compute_normals();
+        viewer.core.align_camera_center(init->U,init->F);
+      }
+      ImGui::SameLine(0, p);
+      if (ImGui::Button("Show Object", ImVec2((w-p)/2.f, 0)))
+      {
+        init->update_viewer(&viewer);
+      }
+      if (ImGui::Button("Generate Ellipsoid S-Rep", ImVec2(-1,0)))
+      {
+        init->generate_ellipsoid_srep();
       }
     }
   };

@@ -21,17 +21,18 @@ public:
   int fit_ellipsoid(vtkSmartPointer<vtkPolyData> polydata_smooth);
   int write_ellipsoid();
   int generate_ellipsoid_srep();
+  int backward_flow();
 
-  double dt = 0.1f;
-  double smoothAmount = 0.1f;
-  int max_iter = 10;
+  double dt;
+  double smoothAmount;
+  int max_iter;
   int iter = 0;
   int nRows = 5;
   int nCols = 5;
   double q=1;
   double tol = 0.01;
   std::string output_folder = "";
-  std::string input_mesh = "../test_data/bunny.off";
+  std::string input_mesh;
   Eigen::VectorXd radii;    //Radii of best fitting ellipsoid
   Eigen::MatrixXd rotation;
   Eigen::MatrixXd center;

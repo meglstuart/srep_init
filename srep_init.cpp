@@ -36,6 +36,9 @@
 #include <vtkCellArray.h>
 #include <vtkObjectBase.h>
 #include <vtksys/SystemTools.hxx>
+#include <vtkThinPlateSplineTransform.h>
+#include <vtkTransformPolyDataFilter.h>
+
 
 srep_init::srep_init(double d, double smooth, int max)
 {
@@ -139,8 +142,7 @@ int srep_init::step_forwardflow()
     U(i,2) = p[2];
   }
 
-  std::string vtk_filename = output_folder + "forward/" + prefix;
-  vtk_filename += ".vtk";
+  std::string vtk_filename = output_folder + "forward/" + prefix + ".vtk";
   writer->SetFileName(vtk_filename.c_str());
   writer->SetInputData(polydata_smooth);
   writer->Update();
@@ -283,14 +285,14 @@ int srep_init::generate_ellipsoid_srep()
   std::string srep_folder(output_folder);
   srep_folder += "model/";
 
-  //copy final ellipsoid to forward flow folder
-  std::string ellSurfaceFile(output_folder);
-  ellSurfaceFile += "ellipsoid.vtk";
-  std::string  newEllSurfaceFile(output_folder);
-  newEllSurfaceFile = newEllSurfaceFile + "forward/" + std::to_string(iter + 1) + ".vtk";
-  std::ifstream  src(ellSurfaceFile, std::ios::binary);
-  std::ofstream  dst(newEllSurfaceFile,   std::ios::binary);
-  dst << src.rdbuf();
+  // //copy final ellipsoid to forward flow folder
+  // std::string ellSurfaceFile(output_folder);
+  // ellSurfaceFile += "ellipsoid.vtk";
+  // std::string  newEllSurfaceFile(output_folder);
+  // newEllSurfaceFile = newEllSurfaceFile + "forward/" + std::to_string(iter + 1) + ".vtk";
+  // std::ifstream  src(ellSurfaceFile, std::ios::binary);
+  // std::ofstream  dst(newEllSurfaceFile,   std::ios::binary);
+  // dst << src.rdbuf();
 
   double rz = radii(0);
   double ry = radii(1);
@@ -777,3 +779,58 @@ int srep_init::generate_ellipsoid_srep()
   curveWriter->Update();
   return 0;
 };
+
+int srep_init::backward_flow()
+{
+
+
+  vtkSmartPointer<vtkPolyDataReader> targetSurfaceReader = vtkSmartPointer<vtkPolyDataReader>::New();
+
+  vtkSmartPointer<vtkPolyData> polyData_source = this->best_fitting_ellipsoid_polydata;
+
+  for (int stepNum = iter; stepNum > iter-1; stepNum --)
+  {
+    vtkSmartPointer<vtkPoints> source_landmarks = vtkSmartPointer<vtkPoints>::New();
+    vtkSmartPointer<vtkPoints> target_landmarks = vtkSmartPointer<vtkPoints>::New();
+
+    std::string nextMeshFile(output_folder);
+    nextMeshFile = nextMeshFile + "forward/" + std::to_string(stepNum) + ".vtk";
+
+    targetSurfaceReader->SetFileName(nextMeshFile.c_str());
+    targetSurfaceReader->Update();
+    // next surface mesh which back flow to
+    vtkSmartPointer<vtkPolyData> polyData_target = targetSurfaceReader->GetOutput();
+
+    std::cout <<" source #: "<< polyData_source->GetNumberOfPoints() << " target #:" << polyData_target->GetNumberOfPoints()<<std::endl;
+    for(unsigned int i = 0; i < polyData_source->GetNumberOfPoints(); i += 10){
+        double p[3];
+        polyData_source->GetPoint(i,p);
+        source_landmarks->InsertNextPoint(p);
+    }
+
+    for(unsigned int i = 0; i < polyData_target->GetNumberOfPoints(); i += 10){
+        double p[3];
+        polyData_target->GetPoint(i,p);
+        target_landmarks->InsertNextPoint(p);
+    }
+
+    vtkSmartPointer<vtkThinPlateSplineTransform> tps = vtkSmartPointer<vtkThinPlateSplineTransform>::New();
+    tps->SetSourceLandmarks(source_landmarks);
+    tps->SetTargetLandmarks(target_landmarks);
+    tps->SetBasisToR();
+
+    vtkSmartPointer<vtkTransformPolyDataFilter> transformFilter =
+    vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+    transformFilter->SetInputData(polyData_source);
+    transformFilter->SetTransform(tps);
+    transformFilter->Update();
+
+    vtkSmartPointer<vtkPolyDataWriter> writer = vtkSmartPointer<vtkPolyDataWriter>::New();
+    writer->SetFileName("testoutput.vtk");
+    writer->SetInputConnection(transformFilter->GetOutputPort());
+    writer->Update();
+
+  }
+
+  return 0;
+}

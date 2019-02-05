@@ -223,6 +223,10 @@ int main(int argc, char *argv[])
       {
         init->generate_ellipsoid_srep();
       }
+      if (ImGui::Button("Backward Flow", ImVec2(-1,0)))
+      {
+        init->backward_flow();
+      }
     }
   };
 

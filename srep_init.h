@@ -18,9 +18,10 @@ public:
   int set_mesh(Eigen::MatrixXd V, Eigen::MatrixXi F);
   int step_forwardflow();
   int update_viewer(igl::opengl::glfw::Viewer *);
-  int fit_ellipsoid(vtkSmartPointer<vtkPolyData> polydata_smooth);
+  int fit_ellipsoid(vtkSmartPointer<vtkPolyData> polydata_smooth, int);
   int write_ellipsoid();
   int generate_ellipsoid_srep();
+  int write_header(int);
   int backward_flow();
 
   double dt;

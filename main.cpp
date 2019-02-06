@@ -203,6 +203,7 @@ int main(int argc, char *argv[])
         {
           init->step_forwardflow();
           std::cout<<"Iteration "<<init->iter<<": error = "<<init->q<<std::endl;
+          // std::cout<<init->q<<std::endl;
         }
         init->update_viewer(&viewer);
         init->write_ellipsoid();

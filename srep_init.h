@@ -22,6 +22,7 @@ public:
   int write_ellipsoid();
   int generate_ellipsoid_srep();
   int write_header(int);
+  int write_srep(int);
   int backward_flow();
 
   double dt;
@@ -44,6 +45,14 @@ public:
   Eigen::MatrixXd ell_U;        //ellipsoid mesh vertices
   Eigen::MatrixXi ell_F;        //ellipsoid mesh faces
   vtkSmartPointer<vtkPolyData> best_fitting_ellipsoid_polydata = vtkSmartPointer<vtkPolyData>::New();
+  // srep spoke hub and boundary points and connectivity info for use in backflow
+  vtkSmartPointer<vtkCellArray> up_mesh   = vtkSmartPointer<vtkCellArray>::New();
+  vtkSmartPointer<vtkCellArray> down_mesh   = vtkSmartPointer<vtkCellArray>::New();
+  vtkSmartPointer<vtkCellArray> crest_mesh   = vtkSmartPointer<vtkCellArray>::New();
+  vtkSmartPointer<vtkPoints> backflow_upPoints = vtkSmartPointer<vtkPoints>::New();
+  vtkSmartPointer<vtkPoints> backflow_downPoints = vtkSmartPointer<vtkPoints>::New();
+  vtkSmartPointer<vtkPoints> backflow_crestPoints = vtkSmartPointer<vtkPoints>::New();
+
 };
 
 #endif

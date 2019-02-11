@@ -132,7 +132,6 @@ int srep_init::step_forwardflow()
   smoother->NormalizeCoordinatesOn();
 
 
-
   // smooth polydata
   smoother->SetInputData(polydata);
   smoother->Update();
@@ -158,7 +157,6 @@ int srep_init::step_forwardflow()
 
 int srep_init::fit_ellipsoid(vtkSmartPointer<vtkPolyData> polydata_smooth, int resolution)
 {
-  // Eigen::MatrixXd rotation;
   // mass filter
   vtkSmartPointer<vtkMassProperties> mass = vtkSmartPointer<vtkMassProperties>::New();
   mass->SetInputData(polydata_smooth);
@@ -172,12 +170,10 @@ int srep_init::fit_ellipsoid(vtkSmartPointer<vtkPolyData> polydata_smooth, int r
   cleaner->Update();
   vtkSmartPointer<vtkPolyData> cleaned_polydata = cleaner->GetOutput();
   Eigen::MatrixXd U_temp(cleaned_polydata->GetNumberOfPoints(),3);
-  // Eigen::MatrixXd U_temp(polydata_smooth->GetNumberOfPoints(),3);
 
   for(int i = 0; i < U_temp.rows(); ++i) {
       double p[3];
       cleaned_polydata->GetPoint(i,p);
-      // polydata_smooth->GetPoint(i,p);
       U_temp(i,0) = p[0];
       U_temp(i,1) = p[1];
       U_temp(i,2) = p[2];
@@ -210,6 +206,8 @@ int srep_init::fit_ellipsoid(vtkSmartPointer<vtkPolyData> polydata_smooth, int r
 
   vtkSmartPointer<vtkParametricFunctionSource> parametric_function = vtkSmartPointer<vtkParametricFunctionSource>::New();
   parametric_function->SetParametricFunction(ellipsoid);
+  // resolution should be set to ensure the ellipsoid and the input mesh have ~ the same number of points.
+  // this makes landmark sampling work better
   parametric_function->SetUResolution(resolution);
   parametric_function->SetVResolution(resolution);
   parametric_function->Update();
@@ -259,7 +257,7 @@ int srep_init::fit_ellipsoid(vtkSmartPointer<vtkPolyData> polydata_smooth, int r
   best_fitting_ellipsoid_polydata->SetPolys(triangle_ellipsoid->GetPolys());
   best_fitting_ellipsoid_polydata->Modified();
 
-  //compute per-point average error between mesh and best fitting ellipsoid
+  //compute per-point average error between mesh and nearest point in best fitting ellipsoid
   vtkSmartPointer<vtkImplicitPolyDataDistance> implicit_distance_filter = vtkSmartPointer<vtkImplicitPolyDataDistance>::New();
   implicit_distance_filter->SetInput(best_fitting_ellipsoid_polydata);
   double distance = 0.0;
@@ -291,14 +289,19 @@ int srep_init::generate_ellipsoid_srep()
   std::string srep_folder(output_folder);
   srep_folder += "model/";
 
-  // //copy final ellipsoid to forward flow folder
-  // std::string ellSurfaceFile(output_folder);
-  // ellSurfaceFile += "ellipsoid.vtk";
-  // std::string  newEllSurfaceFile(output_folder);
-  // newEllSurfaceFile = newEllSurfaceFile + "forward/" + std::to_string(iter + 1) + ".vtk";
-  // std::ifstream  src(ellSurfaceFile, std::ios::binary);
-  // std::ofstream  dst(newEllSurfaceFile,   std::ios::binary);
-  // dst << src.rdbuf();
+  // create folder for srep model. vtksys tool is OS independant
+  std::string model_prefix(srep_folder);
+  model_prefix+= std::to_string(iter+1);
+  if (!vtksys::SystemTools::FileExists(model_prefix, false))
+  {
+    if (!vtksys::SystemTools::MakeDirectory(model_prefix))
+    {
+      std::cout << "Failed to create folder : " << model_prefix << std::endl;
+    }
+  }
+
+  // write header to file
+  write_header(iter+1);
 
   double rz = radii(0);
   double ry = radii(1);
@@ -314,7 +317,7 @@ int srep_init::generate_ellipsoid_srep()
   double deltaTheta = 2*vtkMath::Pi()/nCrestPoints;
   Eigen::MatrixXd skeletal_points_x(nRows, nCols);
   Eigen::MatrixXd skeletal_points_y(nRows, nCols);
-  //MatrixXd skeletal_points_z(nRows, nCols);
+
   int r = 0, c = 0;
   for(int i = 0; i < nCrestPoints; ++i)
   {
@@ -377,7 +380,9 @@ int srep_init::generate_ellipsoid_srep()
 
       }
   }
+
   // 2. compute the head points of spokes
+  // In addition to using these to create the srep, we will save them so we can successively deform them during backflow
   Eigen::MatrixXd skeletal_points(nRows*nCols, 3);
   Eigen::MatrixXd bdry_points_up(nRows*nCols, 3);
   Eigen::MatrixXd bdry_points_down(nRows*nCols, 3);
@@ -479,31 +484,19 @@ int srep_init::generate_ellipsoid_srep()
   Eigen::MatrixXd transformed_crest_base = trans_crest_base + center.replicate(trans_crest_base.rows(), 1);
 
   // 4. transfer points to polydata
-  // srep_poly is supposed to form a mesh grid connecting skeletal points
-  // vtkSmartPointer<vtkPolyData>  srep_poly       = vtkSmartPointer<vtkPolyData>::New();
   vtkSmartPointer<vtkPoints>    skeletal_sheet  = vtkSmartPointer<vtkPoints>::New();
   vtkSmartPointer<vtkCellArray> skeletal_mesh   = vtkSmartPointer<vtkCellArray>::New();
 
-  vtkSmartPointer<vtkPolyData>  upSpokes_poly      = vtkSmartPointer<vtkPolyData>::New();
-  // vtkSmartPointer<vtkPoints>    upSpokes_pts       = vtkSmartPointer<vtkPoints>::New();
-  // vtkSmartPointer<vtkCellArray> upSpokes_lines     = vtkSmartPointer<vtkCellArray>::New();
-
-  vtkSmartPointer<vtkPolyData>  downSpokes_poly      = vtkSmartPointer<vtkPolyData>::New();
-  // vtkSmartPointer<vtkPoints>    downSpokes_pts       = vtkSmartPointer<vtkPoints>::New();
-  // vtkSmartPointer<vtkCellArray> downSpokes_lines     = vtkSmartPointer<vtkCellArray>::New();
-
-  // TODO:crest spokes should be a little off the inner spokes
-  vtkSmartPointer<vtkPolyData>  crestSpokes_poly      = vtkSmartPointer<vtkPolyData>::New();
-  vtkSmartPointer<vtkPoints>    crestSpokes_pts       = vtkSmartPointer<vtkPoints>::New();
-  vtkSmartPointer<vtkCellArray> crestSpokes_lines     = vtkSmartPointer<vtkCellArray>::New();
-  vtkSmartPointer<vtkPolyData> foldCurve_poly         = vtkSmartPointer<vtkPolyData>::New();
   vtkSmartPointer<vtkPoints>    foldCurve_pts         = vtkSmartPointer<vtkPoints>::New();
   vtkSmartPointer<vtkCellArray> fold_curve            = vtkSmartPointer<vtkCellArray>::New();
 
+  //unneccesary?
   skeletal_sheet->SetDataTypeToDouble();
-  // upSpokes_pts->SetDataTypeToDouble();
-  // downSpokes_pts->SetDataTypeToDouble();
-  crestSpokes_pts->SetDataTypeToDouble();
+  foldCurve_pts->SetDataTypeToDouble();
+
+  vtkSmartPointer<vtkPolyData>  upSpokes_poly      = vtkSmartPointer<vtkPolyData>::New();
+  vtkSmartPointer<vtkPolyData>  downSpokes_poly      = vtkSmartPointer<vtkPolyData>::New();
+  vtkSmartPointer<vtkPolyData>  crestSpokes_poly      = vtkSmartPointer<vtkPolyData>::New();
 
   vtkSmartPointer<vtkDoubleArray> upSpokeLengths = vtkSmartPointer<vtkDoubleArray>::New();
   vtkSmartPointer<vtkDoubleArray> downSpokeLengths = vtkSmartPointer<vtkDoubleArray>::New();
@@ -511,7 +504,6 @@ int srep_init::generate_ellipsoid_srep()
   upSpokeLengths->SetNumberOfComponents(1);
   downSpokeLengths->SetNumberOfComponents(1);
   crestSpokeLengths->SetNumberOfComponents(1);
-
   upSpokeLengths->SetName("spokeLength");
   downSpokeLengths->SetName("spokeLength");
   crestSpokeLengths->SetName("spokeLength");
@@ -519,60 +511,55 @@ int srep_init::generate_ellipsoid_srep()
   vtkSmartPointer<vtkDoubleArray> upSpokeDirs = vtkSmartPointer<vtkDoubleArray>::New();
   vtkSmartPointer<vtkDoubleArray> downSpokeDirs = vtkSmartPointer<vtkDoubleArray>::New();
   vtkSmartPointer<vtkDoubleArray> crestSpokeDirs = vtkSmartPointer<vtkDoubleArray>::New();
-
   upSpokeDirs->SetNumberOfComponents(3);
   downSpokeDirs->SetNumberOfComponents(3);
   crestSpokeDirs->SetNumberOfComponents(3);
-
   upSpokeDirs->SetName("spokeDirection");
   downSpokeDirs->SetName("spokeDirection");
   crestSpokeDirs->SetName("spokeDirection");
 
 
+  // This loop defines all neccesary data for up & down spokes
   for(int i = 0; i < nRows * nCols; ++i)
   {
       // skeletal points
       double mx = transformed_skeletal_points(i,0);
       double my = transformed_skeletal_points(i,1);
       double mz = transformed_skeletal_points(i,2);
-      // upSpokes_pts->InsertNextPoint(mx,my, mz);
 
+      // up boundary points
       double bx_up = transformed_up_pdm(i, 0);
       double by_up = transformed_up_pdm(i, 1);
       double bz_up = transformed_up_pdm(i, 2);
-      // int id1 = upSpokes_pts->InsertNextPoint(bx_up, by_up, bz_up);
 
-      // spoke length and dir
+      // down boundary points
+      double bx_down = transformed_down_pdm(i,0);
+      double by_down = transformed_down_pdm(i,1);
+      double bz_down = transformed_down_pdm(i,2);
+
+      backflow_upPoints->InsertNextPoint(mx, my, mz);
+      backflow_upPoints->InsertNextPoint(bx_up, by_up, bz_up);
+      backflow_downPoints->InsertNextPoint(mx, my, mz);
+      backflow_downPoints->InsertNextPoint(bx_down, by_down, bz_down);
+
+
+      // up spoke length and dir
       vtkVector3d upSpoke(bx_up-mx, by_up-my, bz_up-mz);
       double upSpokeLength = upSpoke.Normalize();
       upSpokeLengths->InsertNextTuple1(upSpokeLength);
       upSpokeDirs->InsertNextTuple3(upSpoke.GetX(), upSpoke.GetY(), upSpoke.GetZ());
 
-      // form up spokes
-      // vtkSmartPointer<vtkLine> up_arrow = vtkSmartPointer<vtkLine>::New();
-      // up_arrow->GetPointIds()->SetId(0, id0);
-      // up_arrow->GetPointIds()->SetId(1, id1);
-      // upSpokes_lines->InsertNextCell(up_arrow);
-
-      // form down spokes
-      // downSpokes_pts->InsertNextPoint(mx, my, mz);
-      double bx_down = transformed_down_pdm(i,0);
-      double by_down = transformed_down_pdm(i,1);
-      double bz_down = transformed_down_pdm(i,2);
-      // int id3 = downSpokes_pts->InsertNextPoint(bx_down,by_down,bz_down);
-
-      // spoke length and dir
+      // down spoke length and dir
       vtkVector3d downSpoke(bx_down-mx, by_down-my, bz_down-mz);
       double downSpokeLength = downSpoke.Normalize();
       downSpokeLengths->InsertNextTuple1(downSpokeLength);
       downSpokeDirs->InsertNextTuple3(downSpoke.GetX(), downSpoke.GetY(), downSpoke.GetZ());
 
-      // vtkSmartPointer<vtkLine> down_arrow = vtkSmartPointer<vtkLine>::New();
-      // down_arrow->GetPointIds()->SetId(0, id2);
-      // down_arrow->GetPointIds()->SetId(1, id3);
-      // downSpokes_lines->InsertNextCell(down_arrow);
-
+      // add spoke hub to skeletal sheet
       int current_id = skeletal_sheet->InsertNextPoint(mx, my, mz);
+
+      // define quad mesh on spoke hubs
+      // TODO: this could be changed to tri-mesh? I think vizualization code would not have to change, but I should verify
       int current_row = floor(i / nRows);
       int current_col = i - current_row * nRows;
       if(current_col >= 0 && current_row >= 0
@@ -587,154 +574,7 @@ int srep_init::generate_ellipsoid_srep()
       }
   }
 
-  std::string model_prefix(srep_folder);
-  model_prefix+= std::to_string(iter);
-  if (!vtksys::SystemTools::FileExists(model_prefix, false))
-  {
-    if (!vtksys::SystemTools::MakeDirectory(model_prefix))
-    {
-      std::cout << "Failed to create folder : " << model_prefix << std::endl;
-    }
-  }
-
-
-  // write to file
-  write_header(iter);
-
-  std::string upFileName(model_prefix);
-  std::string downFileName(model_prefix);
-  std::string crestFileName(model_prefix);
-  std::string meshFileName(model_prefix);
-  std::string curveFileName(model_prefix);
-
-  // display up spokes
-  upSpokes_poly->SetPoints(skeletal_sheet);
-  upSpokes_poly->SetPolys(skeletal_mesh);
-  // upSpokes_poly->SetLines(upSpokes_lines);
-
-  upSpokes_poly->GetPointData()->AddArray(upSpokeDirs);
-  upSpokes_poly->GetPointData()->SetActiveVectors("spokeDirection");
-  upSpokes_poly->GetPointData()->AddArray(upSpokeLengths);
-  upSpokes_poly->GetPointData()->SetActiveScalars("spokeLength");
-
-  upFileName  += "/up.vtp";
-  vtkSmartPointer<vtkXMLPolyDataWriter> upSpokeWriter = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
-  upSpokeWriter->SetDataModeToAscii();
-  upSpokeWriter->SetFileName(upFileName.c_str());
-  upSpokeWriter->SetInputData(upSpokes_poly);
-  upSpokeWriter->Update();
-
-  // display down spokes
-  downSpokes_poly->SetPoints(skeletal_sheet);
-  downSpokes_poly->SetPolys(skeletal_mesh);
-  // downSpokes_poly->SetLines(downSpokes_lines);
-
-  downSpokes_poly->GetPointData()->AddArray(downSpokeDirs);
-  downSpokes_poly->GetPointData()->SetActiveVectors("spokeDirection");
-  downSpokes_poly->GetPointData()->AddArray(downSpokeLengths);
-  downSpokes_poly->GetPointData()->SetActiveScalars("spokeLength");
-
-  downFileName +="/down.vtp";
-  vtkSmartPointer<vtkXMLPolyDataWriter> downSpokeWriter = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
-  downSpokeWriter->SetDataModeToAscii();
-  downSpokeWriter->SetFileName(downFileName.c_str());
-  downSpokeWriter->SetInputData(downSpokes_poly);
-  downSpokeWriter->Update();
-
-  // deal with skeletal mesh
-  // for(int i = 0; i < nRows * nCols; ++i)
-  // {
-  //     double mx = transformed_skeletal_points(i, 0);
-  //     double my = transformed_skeletal_points(i, 1);
-  //     double mz = transformed_skeletal_points(i, 2);
-  //     int current_id = skeletal_sheet->InsertNextPoint(mx, my, mz);
-  //     int current_row = floor(i / nRows);
-  //     int current_col = i - current_row * nRows;
-  //     if(current_col >= 0 && current_row >= 0
-  //             && current_row < nRows-1 && current_col < nCols - 1)
-  //     {
-  //         vtkSmartPointer<vtkQuad> quad = vtkSmartPointer<vtkQuad>::New();
-  //         quad->GetPointIds()->SetId(0, current_id);
-  //         quad->GetPointIds()->SetId(1, current_id + nCols);
-  //         quad->GetPointIds()->SetId(2, current_id + nCols + 1);
-  //         quad->GetPointIds()->SetId(3, current_id + 1);
-  //         skeletal_mesh->InsertNextCell(quad);
-  //     }
-  // }
-  // srep_poly->SetPoints(skeletal_sheet);
-  // srep_poly->SetPolys(skeletal_mesh);
-
-  // meshFileName += "/mesh.vtk";
-  // vtkSmartPointer<vtkPolyDataWriter> meshWriter = vtkSmartPointer<vtkPolyDataWriter>::New();
-  // meshWriter->SetFileName(meshFileName.c_str());
-  // meshWriter->SetInputData(srep_poly);
-  // meshWriter->Update();
-
-  // deal with crest spokes
-  for(int i = 0; i < nCrestPoints; ++i)
-  {
-    // tail point
-    double cx_t = transformed_crest_base(i, 0);
-    double cy_t = transformed_crest_base(i, 1);
-    double cz_t = transformed_crest_base(i, 2);
-    // head point (_b means boundary)
-    double cx_b = transformed_crest_pdm(i, 0);
-    double cy_b = transformed_crest_pdm(i, 1);
-    double cz_b = transformed_crest_pdm(i, 2);
-
-    if(shift > 0)
-    {
-      double shift_x = (cx_b - cx_t) * shift;
-      double shift_y = (cy_b - cy_t) * shift;
-      double shift_z = (cz_b - cz_t) * shift;
-
-      cx_t += shift_x;
-      cy_t += shift_y;
-      cz_t += shift_z;
-    }
-
-    crestSpokes_pts->InsertNextPoint(cx_t, cy_t, cz_t);
-    // int id1 = crestSpokes_pts->InsertNextPoint(cx_b, cy_b, cz_b);
-
-    // vtkSmartPointer<vtkLine> crest_arrow = vtkSmartPointer<vtkLine>::New();
-    // crest_arrow->GetPointIds()->SetId(0, id0);
-    // crest_arrow->GetPointIds()->SetId(1, id1);
-    // crestSpokes_lines->InsertNextCell(crest_arrow);
-
-    vtkVector3d crestSpoke(cx_b-cx_t, cy_b-cy_t, cz_b-cz_t);
-    double crestSpokeLength = crestSpoke.Normalize();
-
-    crestSpokeLengths->InsertNextTuple1(crestSpokeLength);
-    crestSpokeDirs->InsertNextTuple3(crestSpoke.GetX(), crestSpoke.GetY(), crestSpoke.GetZ());
-  }
-
-  vtkSmartPointer<vtkPolyLine> polyLine = vtkSmartPointer<vtkPolyLine>::New();
-  polyLine->GetPointIds()->SetNumberOfIds(crestSpokes_pts->GetNumberOfPoints()+1);
-  for (int i = 0; i < crestSpokes_pts->GetNumberOfPoints(); i++)
-  {
-    polyLine->GetPointIds()->SetId(i,i);
-  }
-  polyLine->GetPointIds()->SetId(crestSpokes_pts->GetNumberOfPoints(),0);
-
-  vtkSmartPointer<vtkCellArray> cells = vtkSmartPointer<vtkCellArray>::New();
-  cells->InsertNextCell(polyLine);
-
-  crestSpokes_poly->SetPoints(crestSpokes_pts);
-  crestSpokes_poly->SetLines(cells);
-
-  crestSpokes_poly->GetPointData()->AddArray(crestSpokeDirs);
-  crestSpokes_poly->GetPointData()->SetActiveVectors("spokeDirection");
-  crestSpokes_poly->GetPointData()->AddArray(crestSpokeLengths);
-  crestSpokes_poly->GetPointData()->SetActiveScalars("spokeLength");
-
-  crestFileName += "/crest.vtp";
-  vtkSmartPointer<vtkXMLPolyDataWriter> crestSpokeWriter = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
-  crestSpokeWriter->SetDataModeToAscii();
-  crestSpokeWriter->SetFileName(crestFileName.c_str());
-  crestSpokeWriter->SetInputData(crestSpokes_poly);
-  crestSpokeWriter->Update();
-
-  // deal with fold curve
+  // this loop defines all necessary data for crest spokes
   for(int i = 0; i < nCrestPoints; ++i)
   {
       double cx_t = transformed_crest_base(i, 0);
@@ -743,6 +583,10 @@ int srep_init::generate_ellipsoid_srep()
       double cx_b = transformed_crest_pdm(i, 0);
       double cy_b = transformed_crest_pdm(i, 1);
       double cz_b = transformed_crest_pdm(i, 2);
+
+      backflow_crestPoints->InsertNextPoint(cx_t, cy_t, cz_t);
+      backflow_crestPoints->InsertNextPoint(cx_b, cy_b, cz_b);
+
 
       if(shift > 0)
       {
@@ -806,15 +650,75 @@ int srep_init::generate_ellipsoid_srep()
           fold_seg->GetPointIds()->SetId(1, id0);
           fold_curve->InsertNextCell(fold_seg);
       }
-  }
-  foldCurve_poly->SetPoints(foldCurve_pts);
-  foldCurve_poly->SetLines(fold_curve);
 
-  curveFileName += "/curve.vtk";
-  vtkSmartPointer<vtkPolyDataWriter> curveWriter = vtkSmartPointer<vtkPolyDataWriter>::New();
-  curveWriter->SetFileName(curveFileName.c_str());
-  curveWriter->SetInputData(foldCurve_poly);
-  curveWriter->Update();
+      vtkVector3d crestSpoke(cx_b-cx_t, cy_b-cy_t, cz_b-cz_t);
+      double crestSpokeLength = crestSpoke.Normalize();
+
+      crestSpokeLengths->InsertNextTuple1(crestSpokeLength);
+      crestSpokeDirs->InsertNextTuple3(crestSpoke.GetX(), crestSpoke.GetY(), crestSpoke.GetZ());
+  }
+
+
+  std::string upFileName(model_prefix);
+  upFileName  += "/up.vtp";
+  std::string downFileName(model_prefix);
+  downFileName +="/down.vtp";
+  std::string crestFileName(model_prefix);
+  crestFileName += "/crest.vtp";
+
+
+  // Add hubs, connectivity, spoke lengths, and directions to the upspoke poly
+  upSpokes_poly->SetPoints(skeletal_sheet);
+  upSpokes_poly->SetPolys(skeletal_mesh);
+
+  upSpokes_poly->GetPointData()->AddArray(upSpokeDirs);
+  upSpokes_poly->GetPointData()->SetActiveVectors("spokeDirection");
+  upSpokes_poly->GetPointData()->AddArray(upSpokeLengths);
+  upSpokes_poly->GetPointData()->SetActiveScalars("spokeLength");
+
+  // then write to file
+  vtkSmartPointer<vtkXMLPolyDataWriter> upSpokeWriter = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
+  upSpokeWriter->SetDataModeToAscii();
+  upSpokeWriter->SetFileName(upFileName.c_str());
+  upSpokeWriter->SetInputData(upSpokes_poly);
+  upSpokeWriter->Update();
+
+  // Add hubs, connectivity, spoke lengths, and directions to the downspoke poly
+  downSpokes_poly->SetPoints(skeletal_sheet);
+  downSpokes_poly->SetPolys(skeletal_mesh);
+
+  downSpokes_poly->GetPointData()->AddArray(downSpokeDirs);
+  downSpokes_poly->GetPointData()->SetActiveVectors("spokeDirection");
+  downSpokes_poly->GetPointData()->AddArray(downSpokeLengths);
+  downSpokes_poly->GetPointData()->SetActiveScalars("spokeLength");
+
+  // then write to file
+  vtkSmartPointer<vtkXMLPolyDataWriter> downSpokeWriter = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
+  downSpokeWriter->SetDataModeToAscii();
+  downSpokeWriter->SetFileName(downFileName.c_str());
+  downSpokeWriter->SetInputData(downSpokes_poly);
+  downSpokeWriter->Update();
+
+  // Add hubs, connectivity, spoke lengths, and directions to the crest spoke poly
+  crestSpokes_poly->SetPoints(foldCurve_pts);
+  crestSpokes_poly->SetLines(fold_curve); // Visualizer must have lines instead of polys here, which is just so silly. Could be changed easily.
+
+  crestSpokes_poly->GetPointData()->AddArray(crestSpokeDirs);
+  crestSpokes_poly->GetPointData()->SetActiveVectors("spokeDirection");
+  crestSpokes_poly->GetPointData()->AddArray(crestSpokeLengths);
+  crestSpokes_poly->GetPointData()->SetActiveScalars("spokeLength");
+
+  // then write to file
+  vtkSmartPointer<vtkXMLPolyDataWriter> crestSpokeWriter = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
+  crestSpokeWriter->SetDataModeToAscii();
+  crestSpokeWriter->SetFileName(crestFileName.c_str());
+  crestSpokeWriter->SetInputData(crestSpokes_poly);
+  crestSpokeWriter->Update();
+
+  // save srep polydata for backflow
+  this->up_mesh->DeepCopy(skeletal_mesh);
+  this->down_mesh->DeepCopy(skeletal_mesh);
+  this->crest_mesh->DeepCopy(fold_curve);
   return 0;
 };
 
@@ -845,9 +749,168 @@ int srep_init::write_header(int prefix)
   out_file.close();
 }
 
+int srep_init::write_srep(int prefix)
+{
+  std::string srep_folder(output_folder);
+  srep_folder += "model/";
+
+  // create folder for srep model. vtksys tool is OS independant
+  std::string model_prefix(srep_folder);
+  model_prefix+= std::to_string(prefix);
+  if (!vtksys::SystemTools::FileExists(model_prefix, false))
+  {
+    if (!vtksys::SystemTools::MakeDirectory(model_prefix))
+    {
+      std::cout << "Failed to create folder : " << model_prefix << std::endl;
+    }
+  }
+
+  write_header(prefix);
+
+  std::string upFileName(model_prefix);
+  upFileName  += "/up.vtp";
+  std::string downFileName(model_prefix);
+  downFileName +="/down.vtp";
+  std::string crestFileName(model_prefix);
+  crestFileName += "/crest.vtp";
+
+  vtkSmartPointer<vtkPoints> old_upPoints = this->backflow_upPoints;
+  vtkSmartPointer<vtkPoints> old_downPoints = this->backflow_downPoints;
+  vtkSmartPointer<vtkPoints> old_crestPoints = this->backflow_crestPoints;
+
+  vtkSmartPointer<vtkPolyData>  upSpokes_poly      = vtkSmartPointer<vtkPolyData>::New();
+  vtkSmartPointer<vtkPolyData>  downSpokes_poly      = vtkSmartPointer<vtkPolyData>::New();
+  vtkSmartPointer<vtkPolyData>  crestSpokes_poly      = vtkSmartPointer<vtkPolyData>::New();
+
+  vtkSmartPointer<vtkPoints> upPoints = vtkSmartPointer<vtkPoints>::New();
+  vtkSmartPointer<vtkPoints> downPoints = vtkSmartPointer<vtkPoints>::New();
+  vtkSmartPointer<vtkPoints> crestPoints = vtkSmartPointer<vtkPoints>::New();
+
+  vtkSmartPointer<vtkDoubleArray> upSpokeLengths = vtkSmartPointer<vtkDoubleArray>::New();
+  vtkSmartPointer<vtkDoubleArray> downSpokeLengths = vtkSmartPointer<vtkDoubleArray>::New();
+  vtkSmartPointer<vtkDoubleArray> crestSpokeLengths = vtkSmartPointer<vtkDoubleArray>::New();
+  upSpokeLengths->SetNumberOfComponents(1);
+  downSpokeLengths->SetNumberOfComponents(1);
+  crestSpokeLengths->SetNumberOfComponents(1);
+  upSpokeLengths->SetName("spokeLength");
+  downSpokeLengths->SetName("spokeLength");
+  crestSpokeLengths->SetName("spokeLength");
+
+  vtkSmartPointer<vtkDoubleArray> upSpokeDirs = vtkSmartPointer<vtkDoubleArray>::New();
+  vtkSmartPointer<vtkDoubleArray> downSpokeDirs = vtkSmartPointer<vtkDoubleArray>::New();
+  vtkSmartPointer<vtkDoubleArray> crestSpokeDirs = vtkSmartPointer<vtkDoubleArray>::New();
+  upSpokeDirs->SetNumberOfComponents(3);
+  downSpokeDirs->SetNumberOfComponents(3);
+  crestSpokeDirs->SetNumberOfComponents(3);
+  upSpokeDirs->SetName("spokeDirection");
+  downSpokeDirs->SetName("spokeDirection");
+  crestSpokeDirs->SetName("spokeDirection");
+
+  for(int i = 0; i < nRows * nCols; ++i)
+  {
+      // up spoke hubs
+      double m_up[3];
+      old_upPoints->GetPoint(2*i,m_up);
+      // up spoke surface points
+      double b_up[3];
+      old_upPoints->GetPoint(2*i +1, b_up);
+
+      // down spoke hubs
+      double m_down[3];
+      old_downPoints->GetPoint(2*i,m_down);
+      // down spoke surface points
+      double b_down[3];
+      old_downPoints->GetPoint(2*i +1, b_down);
+
+      upPoints->InsertNextPoint(m_up);
+      downPoints->InsertNextPoint(m_down);
+
+      // up spoke length and dir
+      vtkVector3d upSpoke(b_up[0]-m_up[0], b_up[1]-m_up[1], b_up[2]-m_up[2]);
+      double upSpokeLength = upSpoke.Normalize();
+      upSpokeLengths->InsertNextTuple1(upSpokeLength);
+      upSpokeDirs->InsertNextTuple3(upSpoke.GetX(), upSpoke.GetY(), upSpoke.GetZ());
+
+      // down spoke length and dir
+      vtkVector3d downSpoke(b_down[0]-m_down[0], b_down[1]-m_down[1], b_down[2]-m_down[2]);
+      double downSpokeLength = downSpoke.Normalize();
+      downSpokeLengths->InsertNextTuple1(downSpokeLength);
+      downSpokeDirs->InsertNextTuple3(downSpoke.GetX(), downSpoke.GetY(), downSpoke.GetZ());
+
+  }
+
+  for (int i = 0; i < old_crestPoints->GetNumberOfPoints()/2; i++)
+  {
+    // crest spoke hubs
+    double m_crest[3];
+    old_crestPoints->GetPoint(2*i,m_crest);
+    // crest spoke surface points
+    double b_crest[3];
+    old_crestPoints->GetPoint(2*i +1, b_crest);
+
+    crestPoints->InsertNextPoint(m_crest);
+
+    // crest spoke length and dir
+    vtkVector3d crestSpoke(b_crest[0]-m_crest[0], b_crest[1]-m_crest[1], b_crest[2]-m_crest[2]);
+    double crestSpokeLength = crestSpoke.Normalize();
+    crestSpokeLengths->InsertNextTuple1(crestSpokeLength);
+    crestSpokeDirs->InsertNextTuple3(crestSpoke.GetX(), crestSpoke.GetY(), crestSpoke.GetZ());
+  }
+
+  // Add hubs, connectivity, spoke lengths, and directions to the upspoke poly
+  upSpokes_poly->SetPolys(this->up_mesh);
+  upSpokes_poly->SetPoints(upPoints);
+
+  upSpokes_poly->GetPointData()->AddArray(upSpokeDirs);
+  upSpokes_poly->GetPointData()->SetActiveVectors("spokeDirection");
+  upSpokes_poly->GetPointData()->AddArray(upSpokeLengths);
+  upSpokes_poly->GetPointData()->SetActiveScalars("spokeLength");
+
+  // then write to file
+  vtkSmartPointer<vtkXMLPolyDataWriter> upSpokeWriter = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
+  upSpokeWriter->SetDataModeToAscii();
+  upSpokeWriter->SetFileName(upFileName.c_str());
+  upSpokeWriter->SetInputData(upSpokes_poly);
+  upSpokeWriter->Update();
+
+  // Add hubs, connectivity, spoke lengths, and directions to the downspoke poly
+  downSpokes_poly->SetPolys(this->down_mesh);
+  downSpokes_poly->SetPoints(downPoints);
+
+  downSpokes_poly->GetPointData()->AddArray(downSpokeDirs);
+  downSpokes_poly->GetPointData()->SetActiveVectors("spokeDirection");
+  downSpokes_poly->GetPointData()->AddArray(downSpokeLengths);
+  downSpokes_poly->GetPointData()->SetActiveScalars("spokeLength");
+
+  // then write to file
+  vtkSmartPointer<vtkXMLPolyDataWriter> downSpokeWriter = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
+  downSpokeWriter->SetDataModeToAscii();
+  downSpokeWriter->SetFileName(downFileName.c_str());
+  downSpokeWriter->SetInputData(downSpokes_poly);
+  downSpokeWriter->Update();
+
+  // Add hubs, connectivity, spoke lengths, and directions to the crest spoke poly
+  crestSpokes_poly->SetLines(this->crest_mesh); // Visualizer must have lines instead of polys here, which is just so silly. Could be changed easily.
+  crestSpokes_poly->SetPoints(crestPoints);
+
+  crestSpokes_poly->GetPointData()->AddArray(crestSpokeDirs);
+  crestSpokes_poly->GetPointData()->SetActiveVectors("spokeDirection");
+  crestSpokes_poly->GetPointData()->AddArray(crestSpokeLengths);
+  crestSpokes_poly->GetPointData()->SetActiveScalars("spokeLength");
+
+  // then write to file
+  vtkSmartPointer<vtkXMLPolyDataWriter> crestSpokeWriter = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
+  crestSpokeWriter->SetDataModeToAscii();
+  crestSpokeWriter->SetFileName(crestFileName.c_str());
+  crestSpokeWriter->SetInputData(crestSpokes_poly);
+  crestSpokeWriter->Update();
+}
+
 int srep_init::backward_flow()
 {
-  int sampling_density = 50;
+  // TODO: make this user defined
+  int sampling_density = 10;
+
   //Folder to output flowed mesh at each step for sanity check
   std::string intermediate_steps_folder(output_folder);
   intermediate_steps_folder += "backward/";
@@ -877,7 +940,7 @@ int srep_init::backward_flow()
   // First deal with the best_fitting_ellipsoid -> last deformed object transformation.
   // This is a special case because we do not have point to point correspondance
   // between the generated ellipsoid mesh and the deformed object.
-
+  // I use only surface landmarks, not spoke hub landmarks here. I wonder if it makes much of a difference.
   vtkSmartPointer<vtkPointLocator> closestPointFinder = vtkSmartPointer<vtkPointLocator>::New();
   closestPointFinder->SetDataSet(polyData_source);
   closestPointFinder->AutomaticOn();
@@ -899,11 +962,15 @@ int srep_init::backward_flow()
   tps->SetTargetLandmarks(target_landmarks);
   tps->SetBasisToR();
 
+  // transform ellipsoid mesh
   vtkSmartPointer<vtkTransformPolyDataFilter> transformFilter =
   vtkSmartPointer<vtkTransformPolyDataFilter>::New();
   transformFilter->SetInputData(polyData_source);
   transformFilter->SetTransform(tps);
   transformFilter->Update();
+
+  //We will successively deform the ellipsoid mesh, so we can see how the backflow performs on the whole surface.
+  vtkSmartPointer<vtkPolyData> deformed_ellipsoid = transformFilter->GetOutput();
 
 
   std::string deformed_mesh_file(intermediate_steps_folder);
@@ -913,8 +980,37 @@ int srep_init::backward_flow()
   writer->SetInputConnection(transformFilter->GetOutputPort());
   writer->Update();
 
+  // now transform srep polydata
+  vtkSmartPointer<vtkTransformPolyDataFilter> srep_transformFilter =
+  vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+  srep_transformFilter->SetTransform(tps);
+
+  vtkSmartPointer<vtkPolyData> temp_upPoly = vtkSmartPointer<vtkPolyData>::New();
+  temp_upPoly->SetPoints(this->backflow_upPoints);
+
+  srep_transformFilter->SetInputData(temp_upPoly);
+  srep_transformFilter->Update();
+  this->backflow_upPoints->DeepCopy(srep_transformFilter->GetOutput()->GetPoints());
+
+  vtkSmartPointer<vtkPolyData> temp_downPoly = vtkSmartPointer<vtkPolyData>::New();
+  temp_downPoly->SetPoints(this->backflow_downPoints);
+
+  srep_transformFilter->SetInputData(temp_downPoly);
+  srep_transformFilter->Update();
+  this->backflow_downPoints->DeepCopy(srep_transformFilter->GetOutput()->GetPoints());
+
+  vtkSmartPointer<vtkPolyData> temp_crestPoly = vtkSmartPointer<vtkPolyData>::New();
+  temp_crestPoly->SetPoints(this->backflow_crestPoints);
+
+  srep_transformFilter->SetInputData(temp_crestPoly);
+  srep_transformFilter->Update();
+  this->backflow_crestPoints->DeepCopy(srep_transformFilter->GetOutput()->GetPoints());
+
+  // then write to file
+  this->write_srep(iter);
 
   // Now deal with the rest of the steps
+  // We use both surface landmarks and spoke hub landmarks
 
   //first, the old target becomes the new source
   polyData_source = polyData_target;
@@ -938,23 +1034,43 @@ int srep_init::backward_flow()
   // now get principal curvatures for each point via quadratic fitting
   // (more robust than descrete curvature calculation)
   // and compute mean curvature
-  Eigen::VectorXd PV1,PV2;   //Curvature
-  Eigen::MatrixXd PD1,PD2;   //Curvature direction
-  Eigen::VectorXd H;
+  Eigen::VectorXd PV1,PV2;   // Curvature
+  Eigen::MatrixXd PD1,PD2;   // Curvature direction
+  Eigen::VectorXd H;         // Mean Curvature
   igl::principal_curvature(source_V,this->F,PD1,PD2,PV1,PV2);
-  // mean curvature
   H = 0.5*(PV1+PV2);
 
-  for(unsigned int i = 0; i < polyData_source->GetNumberOfPoints(); i += sampling_density){
+
+  for(unsigned int i = 0; i < polyData_source->GetNumberOfPoints(); i += sampling_density)
+  {
     //resample the surface mesh
     double p[3];
     polyData_source->GetPoint(i,p);
     source_landmarks->InsertNextPoint(p);
 
+  }
+
+  closestPointFinder = vtkSmartPointer<vtkPointLocator>::New();
+  closestPointFinder->SetDataSet(polyData_source);
+  closestPointFinder->AutomaticOn();
+  closestPointFinder->SetNumberOfPointsPerBucket(2);
+  closestPointFinder->BuildLocator();
+  
+  for(int i = 0; i < backflow_crestPoints->GetNumberOfPoints()/2; i++)
+  {
+    double p[3];
+    double pt[3]
+
+    //Get crest boundary point
+    backflow_crestPoints->GetPoint(2*i+1,p);
+    //find nearest point on mesh
+    int pt_index = closestPointFinder->FindClosestPoint(p);
+    polyData_source->GetPoint(pt_index,pt);
+
     //then compute where the crest spoke hubs should be
-    Eigen::Vector3d v(p[0], p[1], p[2]);
+    Eigen::Vector3d v(pt[0], pt[1], pt[2]);
     Eigen::Vector3d s;
-    s = v + (1/H(i))*source_N.row(i).transpose();
+    s = v + (1/H(pt_index))*source_N.row(pt_index).transpose();
     double sp[3];
     sp[0] = s[0];
     sp[1] = s[1];
@@ -963,10 +1079,9 @@ int srep_init::backward_flow()
     source_landmarks->InsertNextPoint(sp);
   }
 
-  //We will successively deform the last mesh produced in MCF to verify the accuracy of the backflow
-  vtkSmartPointer<vtkPolyData> deformed_ellipsoid = transformFilter->GetOutput();
 
-  for (int stepNum = iter-1; stepNum > 0; stepNum --)
+
+  for (int stepNum = iter-1; stepNum > 0; stepNum-- )
   {
     std::cout<<"Backflow step: "<<stepNum<<std::endl;
     vtkSmartPointer<vtkPoints> target_landmarks = vtkSmartPointer<vtkPoints>::New();
@@ -977,7 +1092,7 @@ int srep_init::backward_flow()
     targetSurfaceReader->SetFileName(nextMeshFile.c_str());
     targetSurfaceReader->Update();
 
-    // next surface mesh which back flow to
+    // next surface mesh to flow to
     vtkSmartPointer<vtkPolyData> polyData_target = targetSurfaceReader->GetOutput();
 
     Eigen::MatrixXd target_V(polyData_target->GetNumberOfPoints(),3);
@@ -998,6 +1113,7 @@ int srep_init::backward_flow()
     H = 0.5*(PV1+PV2);
 
     //Number of points in source and target should be equal
+
     for(unsigned int i = 0; i < polyData_target->GetNumberOfPoints(); i += sampling_density){
         double p[3];
         polyData_target->GetPoint(i,p);
@@ -1006,13 +1122,13 @@ int srep_init::backward_flow()
         //then compute where the crest spoke hubs should be
         Eigen::Vector3d v(p[0], p[1], p[2]);
         Eigen::Vector3d s;
-        s = v + (1/H(i))*source_N.row(i).transpose();
+        s = v + (1/H(i))*target_N.row(i).transpose();
         double sp[3];
         sp[0] = s[0];
         sp[1] = s[1];
         sp[2] = s[2];
 
-        target_landmarks->InsertNextPoint(sp);
+        // target_landmarks->InsertNextPoint(sp);
       }
 
     vtkSmartPointer<vtkThinPlateSplineTransform> tps = vtkSmartPointer<vtkThinPlateSplineTransform>::New();
@@ -1034,18 +1150,48 @@ int srep_init::backward_flow()
     writer->SetInputData(deformed_ellipsoid);
     writer->Update();
 
-  // //We successively deform the last mesh produced in forward flow to use to compute the source landmarks at each step.
-  //   transformFilter->SetInputData(deformed_object);
-  //   transformFilter->Update();
-  //   polyData_source->DeepCopy(transformFilter->GetOutput());
-
     //Deforming the source landmark points for the next iteration
-    vtkSmartPointer<vtkPolyData> landmark_poly = vtkSmartPointer<vtkPolyData>::New();
-    landmark_poly->SetPoints(source_landmarks);
+    vtkSmartPointer<vtkTransformPolyDataFilter> landmark_transformFilter =
+    vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+    landmark_transformFilter->SetTransform(tps);
 
-    transformFilter->SetInputData(landmark_poly);
-    transformFilter->Update();
-    source_landmarks->DeepCopy(transformFilter->GetOutput()->GetPoints());
+    vtkSmartPointer<vtkPoints> temp_points = vtkSmartPointer<vtkPoints>::New();
+    temp_points->DeepCopy(source_landmarks);
+    vtkSmartPointer<vtkPolyData> landmark_poly = vtkSmartPointer<vtkPolyData>::New();
+    landmark_poly->SetPoints(temp_points);
+
+    landmark_transformFilter->SetInputData(landmark_poly);
+    landmark_transformFilter->Update();
+    source_landmarks->DeepCopy(landmark_transformFilter->GetOutput()->GetPoints());
+
+    // now transform srep polydata
+    vtkSmartPointer<vtkTransformPolyDataFilter> srep_transformFilter =
+    vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+    srep_transformFilter->SetTransform(tps);
+
+    vtkSmartPointer<vtkPolyData> temp_upPoly = vtkSmartPointer<vtkPolyData>::New();
+    temp_upPoly->SetPoints(this->backflow_upPoints);
+
+    srep_transformFilter->SetInputData(temp_upPoly);
+    srep_transformFilter->Update();
+    this->backflow_upPoints->DeepCopy(srep_transformFilter->GetOutput()->GetPoints());
+
+    vtkSmartPointer<vtkPolyData> temp_downPoly = vtkSmartPointer<vtkPolyData>::New();
+    temp_downPoly->SetPoints(this->backflow_downPoints);
+
+    srep_transformFilter->SetInputData(temp_downPoly);
+    srep_transformFilter->Update();
+    this->backflow_downPoints->DeepCopy(srep_transformFilter->GetOutput()->GetPoints());
+
+    vtkSmartPointer<vtkPolyData> temp_crestPoly = vtkSmartPointer<vtkPolyData>::New();
+    temp_crestPoly->SetPoints(this->backflow_crestPoints);
+
+    srep_transformFilter->SetInputData(temp_crestPoly);
+    srep_transformFilter->Update();
+    this->backflow_crestPoints->DeepCopy(srep_transformFilter->GetOutput()->GetPoints());
+
+    // then write to file
+    this->write_srep(stepNum);
   }
 
   return 0;

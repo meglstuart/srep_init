@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
   double dt = 0.001f;
   double smoothAmount = 0.001f;
   int max_iter = 10;
-  std::string input_mesh = "../test_data/bunny.off";
+  // std::string input_mesh = "../test_data/bunny.off";
   srep_init *init = new srep_init(dt, smoothAmount, max_iter);
 
   // igl::readOFF(input_mesh, V, F);
@@ -182,6 +182,7 @@ int main(int argc, char *argv[])
       ImGui::InputDouble("smoothAmount", &(init->smoothAmount), 0, 0, "%.4f");
       ImGui::InputDouble("Per-vertex best-fitting-ellipsoid tolerance", &(init->tol), 0, 0, "%.4f");
       ImGui::InputInt("max Iterations", &(init->max_iter));
+      ImGui::InputInt("TPS sampling density", &(init->sampling_density));
 
       // Add Step Button
       if (ImGui::Button("Reset Mesh", ImVec2(-1,0)))
@@ -203,10 +204,14 @@ int main(int argc, char *argv[])
         {
           init->step_forwardflow();
           std::cout<<"Iteration "<<init->iter<<": error = "<<init->q<<std::endl;
-          // std::cout<<init->q<<std::endl;
         }
         init->update_viewer(&viewer);
         init->write_ellipsoid();
+      }
+      if (ImGui::Button("Run Backward Flow", ImVec2(-1,0)))
+      {
+        init->generate_ellipsoid_srep();
+        init->backward_flow();
       }
       if (ImGui::Button("Show Ellipsoid", ImVec2((w-p)/2.f, 0)))
       {
@@ -223,10 +228,6 @@ int main(int argc, char *argv[])
       if (ImGui::Button("Generate Ellipsoid S-Rep", ImVec2(-1,0)))
       {
         init->generate_ellipsoid_srep();
-      }
-      if (ImGui::Button("Backward Flow", ImVec2(-1,0)))
-      {
-        init->backward_flow();
       }
     }
   };

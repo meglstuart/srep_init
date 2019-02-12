@@ -29,10 +29,11 @@ public:
   double smoothAmount;
   int max_iter;
   int iter = 0;
-  int nRows = 5;
-  int nCols = 5;
+  int nRows = 9;
+  int nCols = 9;
   double q=1;
   double tol = 0.01;
+  int sampling_density = 10;
   std::string output_folder = "";
   std::string input_mesh;
   Eigen::VectorXd radii;    //Radii of best fitting ellipsoid

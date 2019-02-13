@@ -11,6 +11,7 @@
 #include <igl/barycenter.h>
 #include <igl/writeOFF.h>
 #include <igl/principal_curvature.h>
+#include <igl/decimate.h>
 
 
 #include <vtkSmartPointer.h>
@@ -54,6 +55,15 @@ srep_init::srep_init(double d, double smooth, int max)
 
 int srep_init::set_mesh(Eigen::MatrixXd V, Eigen::MatrixXi F)
 {
+  // Eigen::VectorXi J;
+  // Eigen::MatrixXd W;
+  // Eigen::MatrixXi G;
+  // igl::decimate(V, F, 2000, W, G, J);
+  // this->V = W;
+  // this->F = G;
+  // this->U = W;
+  // igl::cotmatrix(W,G,this->L);
+
   this->V = V;
   this->F = F;
   this->U = V;
@@ -131,37 +141,39 @@ int srep_init::step_forwardflow()
   std::string prefix = temp;
 
 
-  // smoother
-  vtkSmartPointer<vtkWindowedSincPolyDataFilter> smoother =
-  vtkSmartPointer<vtkWindowedSincPolyDataFilter>::New();
-  smoother->SetNumberOfIterations(20);
-  smoother->BoundarySmoothingOff();
-  smoother->FeatureEdgeSmoothingOff();
-  smoother->SetPassBand(smoothAmount);
-  smoother->NonManifoldSmoothingOn();
-  smoother->NormalizeCoordinatesOn();
-
-
-  // smooth polydata
-  smoother->SetInputData(polydata);
-  smoother->Update();
-  vtkSmartPointer<vtkPolyData> polydata_smooth = smoother->GetOutput();
-
-  // set U to smoothed points
-  for(int i = 0; i < U.rows(); ++i) {
-    double p[3];
-    polydata_smooth->GetPoint(i,p);
-    U(i,0) = p[0];
-    U(i,1) = p[1];
-    U(i,2) = p[2];
-  }
+  // // smoother
+  // vtkSmartPointer<vtkWindowedSincPolyDataFilter> smoother =
+  // vtkSmartPointer<vtkWindowedSincPolyDataFilter>::New();
+  // smoother->SetNumberOfIterations(20);
+  // smoother->BoundarySmoothingOff();
+  // smoother->FeatureEdgeSmoothingOff();
+  // smoother->SetPassBand(smoothAmount);
+  // smoother->NonManifoldSmoothingOn();
+  // smoother->NormalizeCoordinatesOn();
+  //
+  //
+  // // smooth polydata
+  // smoother->SetInputData(polydata);
+  // smoother->Update();
+  // vtkSmartPointer<vtkPolyData> polydata_smooth = smoother->GetOutput();
+  //
+  // // set U to smoothed points
+  // for(int i = 0; i < U.rows(); ++i) {
+  //   double p[3];
+  //   polydata_smooth->GetPoint(i,p);
+  //   U(i,0) = p[0];
+  //   U(i,1) = p[1];
+  //   U(i,2) = p[2];
+  // }
 
   std::string vtk_filename = output_folder + "forward/" + prefix + ".vtk";
   writer->SetFileName(vtk_filename.c_str());
-  writer->SetInputData(polydata_smooth);
+  // writer->SetInputData(polydata_smooth);
+  writer->SetInputData(polydata);
   writer->Update();
 
-  this->fit_ellipsoid(polydata_smooth, floor(sqrt(polydata->GetNumberOfPoints())));
+  this->fit_ellipsoid(polydata, floor(sqrt(polydata->GetNumberOfPoints())));
+  // this->fit_ellipsoid(polydata_smooth, floor(sqrt(polydata->GetNumberOfPoints())));
   return true;
 };
 
@@ -968,7 +980,7 @@ int srep_init::backward_flow()
   vtkSmartPointer<vtkThinPlateSplineTransform> tps = vtkSmartPointer<vtkThinPlateSplineTransform>::New();
   tps->SetSourceLandmarks(source_landmarks);
   tps->SetTargetLandmarks(target_landmarks);
-  tps->SetSigma(0.5);
+  tps->SetSigma(0.05);
   tps->SetBasisToR();
 
   // transform ellipsoid mesh

@@ -449,6 +449,10 @@ int srep_init::generate_ellipsoid_srep()
           // fold curve
           if(i == 0 || i == nRows - 1 || j == 0 || j == nCols - 1)
           {
+              if(i==0) id_crest = j;
+              else if (j == (nCols - 1)) id_crest = nCols-1 + i;
+              else if (i == (nRows - 1)) id_crest = 2*(nCols-1) + nRows - 1 -j;
+              else id_crest = 2*(nCols-1) + 2*(nRows - 1) -i;
               double cx = rx * cB_n - mx;
               double cy = ry * sB_n - my;
               double cz = 0;
@@ -464,7 +468,7 @@ int srep_init::generate_ellipsoid_srep()
               bdry_points_crest.row(id_crest) << bx, by, bz;
               skeletal_points_crest.row(id_crest) << mx, my, 0.0;
               shift_dir.row(id_crest) << v2(0), v2(1), v2(2);
-              id_crest++;
+
           }
       }
   }
@@ -623,56 +627,61 @@ int srep_init::generate_ellipsoid_srep()
 
     int id0 = foldCurve_pts->InsertNextPoint(cx_t, cy_t, cz_t);
 
-    if(id0 > 0 && i < nCols)
-    {
-        // first row
-        vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-        fold_seg->GetPointIds()->SetId(0, id0-1);
-        fold_seg->GetPointIds()->SetId(1, id0);
-        fold_curve->InsertNextCell(fold_seg);
-    }
 
-    if(i > nCols && i < nCols + 2*(nRows-2) + 1 && (i-nCols) % 2 == 1)
-    {
-        // right side of crest
-        vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-        fold_seg->GetPointIds()->SetId(0, id0-2);
-        fold_seg->GetPointIds()->SetId(1, id0);
-        fold_curve->InsertNextCell(fold_seg);
-    }
-    if(i > nCols && i < nCols + 2*(nRows-2) + 1 && (i-nCols) % 2 == 0)
-    {
-        // part of left side
-        vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-        fold_seg->GetPointIds()->SetId(0, id0-2);
-        fold_seg->GetPointIds()->SetId(1, id0);
-        fold_curve->InsertNextCell(fold_seg);
-    }
+    // if(id0 > 0)
+    // {
+    //     // first row
+    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
+    //     fold_seg->GetPointIds()->SetId(0, id0-1);
+    //     fold_seg->GetPointIds()->SetId(1, id0);
+    //     fold_curve->InsertNextCell(fold_seg);
+    // }
+    // vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
+    // fold_seg->GetPointIds()->SetId(0, id0);
+    // fold_seg->GetPointIds()->SetId(1, 0);
+    // fold_curve->InsertNextCell(fold_seg);
 
-    if(i == nCols)
-    {
-        // remaining part of left side
-        vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-        fold_seg->GetPointIds()->SetId(0, 0);
-        fold_seg->GetPointIds()->SetId(1, id0);
-        fold_curve->InsertNextCell(fold_seg);
-    }
-    if(i > nCols + 2*(nRows-2))
-    {
-        //bottom side
-        vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-        fold_seg->GetPointIds()->SetId(0, id0-1);
-        fold_seg->GetPointIds()->SetId(1, id0);
-        fold_curve->InsertNextCell(fold_seg);
-    }
-    if(i == nCrestPoints - 1)
-    {
-        // bottome right
-        vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-        fold_seg->GetPointIds()->SetId(0, id0-nCols);
-        fold_seg->GetPointIds()->SetId(1, id0);
-        fold_curve->InsertNextCell(fold_seg);
-    }
+    // if(i > nCols && i < nCols + 2*(nRows-2) + 1 && (i-nCols) % 2 == 1)
+    // {
+    //     // right side of crest
+    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
+    //     fold_seg->GetPointIds()->SetId(0, id0-2);
+    //     fold_seg->GetPointIds()->SetId(1, id0);
+    //     fold_curve->InsertNextCell(fold_seg);
+    // }
+    // if(i > nCols && i < nCols + 2*(nRows-2) + 1 && (i-nCols) % 2 == 0)
+    // {
+    //     // part of left side
+    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
+    //     fold_seg->GetPointIds()->SetId(0, id0-2);
+    //     fold_seg->GetPointIds()->SetId(1, id0);
+    //     fold_curve->InsertNextCell(fold_seg);
+    // }
+    //
+    // if(i == nCols)
+    // {
+    //     // remaining part of left side
+    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
+    //     fold_seg->GetPointIds()->SetId(0, 0);
+    //     fold_seg->GetPointIds()->SetId(1, id0);
+    //     fold_curve->InsertNextCell(fold_seg);
+    // }
+    // if(i > nCols + 2*(nRows-2))
+    // {
+    //     //bottom side
+    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
+    //     fold_seg->GetPointIds()->SetId(0, id0-1);
+    //     fold_seg->GetPointIds()->SetId(1, id0);
+    //     fold_curve->InsertNextCell(fold_seg);
+    // }
+    // if(i == nCrestPoints - 1)
+    // {
+    //     // bottome right
+    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
+    //     fold_seg->GetPointIds()->SetId(0, id0-nCols);
+    //     fold_seg->GetPointIds()->SetId(1, id0);
+    //     fold_curve->InsertNextCell(fold_seg);
+    // }
 
     vtkVector3d crestSpoke(cx_b-cx_t, cy_b-cy_t, cz_b-cz_t);
     double crestSpokeLength = crestSpoke.Normalize();
@@ -681,6 +690,15 @@ int srep_init::generate_ellipsoid_srep()
     crestSpokeDirs->InsertNextTuple3(crestSpoke.GetX(), crestSpoke.GetY(), crestSpoke.GetZ());
   }
 
+  // Create crest curve
+  vtkSmartPointer<vtkPolyLine> polyLine = vtkSmartPointer<vtkPolyLine>::New();
+  polyLine->GetPointIds()->SetNumberOfIds(nCrestPoints+1);
+  for (int i = 0; i < nCrestPoints; i++)
+  {
+    polyLine->GetPointIds()->SetId(i, i);
+  }
+  polyLine->GetPointIds()->SetId(nCrestPoints,0);
+  fold_curve->InsertNextCell(polyLine);
 
   std::string upFileName(model_prefix);
   upFileName  += "/up.vtp";

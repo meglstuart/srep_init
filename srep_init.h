@@ -15,6 +15,7 @@ class srep_init
 {
 public:
   srep_init(double d, double smooth, int max);
+  srep_init(std::string inMesh, std::string outFolder, int nRows, int nCols, double d, double smooth, double tolerance, int samplingDensity, int max);
   int set_mesh(Eigen::MatrixXd V, Eigen::MatrixXi F);
   int step_forwardflow();
   int update_viewer(igl::opengl::glfw::Viewer *);

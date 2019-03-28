@@ -51,6 +51,53 @@ srep_init::srep_init(double d, double smooth, int max)
   this->dt = d;
   this->smoothAmount = smooth;
   this->max_iter = max;
+  if (output_folder != "" && !vtksys::SystemTools::FileExists(output_folder, false))
+  {
+    if (!vtksys::SystemTools::MakeDirectory(output_folder))
+    {
+      std::cout << "Failed to create folder : " << output_folder << std::endl;
+    }
+  }
+
+  std::string forward_folder(output_folder);
+  forward_folder += "forward/";
+  if (!vtksys::SystemTools::FileExists(forward_folder, false))
+  {
+    if (!vtksys::SystemTools::MakeDirectory(forward_folder))
+    {
+      std::cout << "Failed to create folder : " << forward_folder << std::endl;
+    }
+  }
+};
+
+srep_init::srep_init(std::string inMesh, std::string outFolder, int nRows, int nCols, double d, double smooth, double tolerance, int samplingDensity, int max)
+{
+  this->input_mesh = inMesh;
+  this->output_folder = outFolder;
+  this->nRows = nRows;
+  this->nCols = nCols;
+  this->dt = d;
+  this->smoothAmount = smooth;
+  this->tol = tolerance;
+  this->sampling_density = samplingDensity;
+  this->max_iter = max;
+  if (output_folder != "" && !vtksys::SystemTools::FileExists(output_folder, false))
+  {
+    if (!vtksys::SystemTools::MakeDirectory(output_folder))
+    {
+      std::cout << "Failed to create folder : " << output_folder << std::endl;
+    }
+  }
+
+  std::string forward_folder(output_folder);
+  forward_folder += "forward/";
+  if (!vtksys::SystemTools::FileExists(forward_folder, false))
+  {
+    if (!vtksys::SystemTools::MakeDirectory(forward_folder))
+    {
+      std::cout << "Failed to create folder : " << forward_folder << std::endl;
+    }
+  }
 };
 
 int srep_init::set_mesh(Eigen::MatrixXd V, Eigen::MatrixXi F)
@@ -81,6 +128,8 @@ int srep_init::update_viewer(igl::opengl::glfw::Viewer *viewer)
 
 int srep_init::step_forwardflow()
 {
+
+
 
   char temp[128];
   // compute mean curvature flow
@@ -1127,7 +1176,6 @@ int srep_init::backward_flow()
 
     std::string nextMeshFile(output_folder);
     nextMeshFile = nextMeshFile + "forward/" + std::to_string(stepNum) + ".vtk";
-
     targetSurfaceReader->SetFileName(nextMeshFile.c_str());
     targetSurfaceReader->Update();
 

@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
     viewer.plugins.push_back(&menu);
 
     // Variables to be defined using the menu
-    double dt = 0.001f;
+    double dt = 0.01f;
     double smoothAmount = 0.001f;
     int max_iter = 10;
     // std::string input_mesh = "../test_data/bunny.off";
@@ -261,6 +261,7 @@ int main(int argc, char *argv[])
         ImGui::InputDouble("dt", &(init->dt), 0, 0, "%.4f");
         ImGui::InputDouble("smoothAmount", &(init->smoothAmount), 0, 0, "%.4f");
         ImGui::InputDouble("Per-vertex best-fitting-ellipsoid tolerance", &(init->tol), 0, 0, "%.4f");
+        ImGui::InputDouble("Rigidity of backward flow deformations", &(init->elasticity), 0, 0, "%.4f");
         ImGui::InputInt("max Iterations", &(init->max_iter));
         ImGui::InputInt("TPS sampling density", &(init->sampling_density));
 

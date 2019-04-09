@@ -1047,7 +1047,7 @@ int srep_init::backward_flow()
   vtkSmartPointer<vtkThinPlateSplineTransform> tps = vtkSmartPointer<vtkThinPlateSplineTransform>::New();
   tps->SetSourceLandmarks(source_landmarks);
   tps->SetTargetLandmarks(target_landmarks);
-  tps->SetSigma(0.05);
+  tps->SetSigma(this->elasticity);
   tps->SetBasisToR();
 
   // transform ellipsoid mesh

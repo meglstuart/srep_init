@@ -35,6 +35,7 @@ public:
   double q=1;
   double tol = 0.01;
   int sampling_density = 10;
+  double elasticity = 0.05;
   std::string output_folder = "";
   std::string input_mesh;
   Eigen::VectorXd radii;    //Radii of best fitting ellipsoid

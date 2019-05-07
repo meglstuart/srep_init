@@ -14,6 +14,7 @@
 #include <igl/decimate.h>
 
 
+
 #include <vtkSmartPointer.h>
 #include <vtkPolyDataReader.h>
 #include <vtkPolyDataWriter.h>
@@ -70,7 +71,7 @@ srep_init::srep_init(double d, double smooth, int max)
   }
 };
 
-srep_init::srep_init(std::string inMesh, std::string outFolder, int nRows, int nCols, double d, double smooth, double tolerance, int samplingDensity, int max)
+srep_init::srep_init(std::string inMesh, std::string outFolder, int nRows, int nCols, double d, double smooth, double tolerance, double elasticity, int samplingDensity, int max)
 {
   this->input_mesh = inMesh;
   this->output_folder = outFolder;
@@ -81,6 +82,7 @@ srep_init::srep_init(std::string inMesh, std::string outFolder, int nRows, int n
   this->tol = tolerance;
   this->sampling_density = samplingDensity;
   this->max_iter = max;
+  this->elasticity = elasticity;
   if (output_folder != "" && !vtksys::SystemTools::FileExists(output_folder, false))
   {
     if (!vtksys::SystemTools::MakeDirectory(output_folder))
@@ -1124,10 +1126,20 @@ int srep_init::backward_flow()
   // and compute mean curvature
   Eigen::VectorXd PV1,PV2;   // Curvature
   Eigen::MatrixXd PD1,PD2;   // Curvature direction
-  Eigen::VectorXd H;         // Mean Curvature
+  // Eigen::VectorXd H;         // Mean Curvature
   igl::principal_curvature(source_V,this->F,PD1,PD2,PV1,PV2);
-  H = 0.5*(PV1+PV2);
 
+  // H = 0.5*(PV1+PV2);
+  Eigen::VectorXd H(PV1.size());         // Mean Curvature
+  for (int i = 0; i < H.size(); i++)
+  {
+    if(abs(PV1[i])>abs(PV2[i])){
+      H[i] = PV1[i];
+    }else
+    {
+      H[i] = PV2[i];
+    }
+  }
 
   for(unsigned int i = 0; i < polyData_source->GetNumberOfPoints(); i += sampling_density)
   {
@@ -1197,7 +1209,18 @@ int srep_init::backward_flow()
 
     igl::principal_curvature(target_V,this->F,PD1,PD2,PV1,PV2);
     // mean curvature
-    H = 0.5*(PV1+PV2);
+    // H = 0.5*(PV1+PV2);
+    // Eigen::VectorXd H(PV1.size());         // Mean Curvature
+    for (int i = 0; i < H.size(); i++)
+    {
+      if(abs(PV1[i])>abs(PV2[i])){
+        H[i] = PV1[i];
+      }else
+      {
+        H[i] = PV2[i];
+      }
+    }
+
 
     //Number of points in source and target should be equal
 

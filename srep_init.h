@@ -15,7 +15,7 @@ class srep_init
 {
 public:
   srep_init(double d, double smooth, int max);
-  srep_init(std::string inMesh, std::string outFolder, int nRows, int nCols, double d, double smooth, double tolerance, int samplingDensity, int max);
+  srep_init(std::string inMesh, std::string outFolder, int nRows, int nCols, double d, double smooth, double tolerance, double elasticity, int samplingDensity, int max);
   int set_mesh(Eigen::MatrixXd V, Eigen::MatrixXi F);
   int step_forwardflow();
   int update_viewer(igl::opengl::glfw::Viewer *);
@@ -29,14 +29,14 @@ public:
   double dt;
   double smoothAmount;
   int max_iter;
-  int iter = 0;
-  int nRows = 9;
-  int nCols = 9;
-  double q=1;
-  double tol = 0.01;
-  int sampling_density = 10;
-  double elasticity = 0.05;
+  int nRows;
+  int nCols;
+  int sampling_density;
+  double elasticity;
+  double tol;
   std::string output_folder = "";
+  int iter = 0;
+  double q=1;
   std::string input_mesh;
   Eigen::VectorXd radii;    //Radii of best fitting ellipsoid
   Eigen::MatrixXd rotation;

@@ -22,3 +22,7 @@ cd build
 cmake ..
 make
 ~~~
+
+## Usage
+Use `./srep_init --help` for full listing of options.
+There is a (pretty incomplete) GUI that you can use with `./srep_init -g`, but for most usability I recommend the CLI

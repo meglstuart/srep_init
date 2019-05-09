@@ -13,19 +13,6 @@
 
 int main(int argc, char *argv[])
 {
-
-
-  // std::string inMesh (argv[1]);
-  // std::string outFolder (argv[2]);
-  // outFolder+='/';
-  // int nRows = atoi(argv[3]);
-  // int nCols = atoi(argv[4]);
-  // float dt = atof(argv[5]);
-  // float smoothAmount = atof(argv[6]);
-  // float tolerance = atof(argv[7]);
-  // int samplingDensity = atoi(argv[8]);
-  // int max_iter = atoi(argv[9]);
-  // std::printf("%s %s %d %d %f %f %f %d %d\n", inMesh.c_str(), outFolder.c_str(), nRows, nCols, dt, smoothAmount, tolerance, samplingDensity, max_iter);
   try
   {
     cxxopts::Options options("srep_init", "Initializes srep structure from input mesh");
@@ -35,8 +22,8 @@ int main(int argc, char *argv[])
     ("f,file","Input mesh file", cxxopts::value<std::string>()->default_value(""))
     ("d,dt","Length of time object is allowed to flow at each forward flow step",cxxopts::value<double>()->default_value("0.01"))
     ("s,smoothAmount","Amount to smooth the mesh at each forward flow step",cxxopts::value<double>()->default_value("0.001"))
-    ("m,maxIter", "Maximum number of forward flow steps", cxxopts::value<int>()->default_value("20"))
-    ("p,samplingDensity", "Sample mesh every arg points",cxxopts::value<int>()->default_value("10"))
+    ("m,maxIter", "Maximum number of forward flow steps", cxxopts::value<int>()->default_value("10"))
+    ("p,samplingDensity", "Sample mesh every arg points",cxxopts::value<int>()->default_value("50"))
     ("e,elasticity","Elasticity parameter of thin plate spline, lower = more elastic",cxxopts::value<double>()->default_value("0.05"))
     ("o,outputFolder","Folder to output the generated sreps and intermediate results. If not specified, current directory will be used",cxxopts::value<std::string>()->default_value(""))
     ("r,nRows","Number of rows in medial mesh of produced srep",cxxopts::value<int>()->default_value("9"))
@@ -57,10 +44,6 @@ int main(int argc, char *argv[])
       exit(0);
     }
     srep_init *init = new srep_init(result["file"].as<std::string>(), result["outputFolder"].as<std::string>(), result["nRows"].as<int>(), result["nCols"].as<int>(), result["dt"].as<double>(), result["smoothAmount"].as<double>(), result["tolerance"].as<double>(), result["elasticity"].as<double>(), result["samplingDensity"].as<int>(), result["maxIter"].as<int>());
-
-
-
-    // srep_init *init = new srep_init(inMesh, outFolder, nRows, nCols, dt, smoothAmount, tolerance, elasticity, samplingDensity, max_iter);
 
     if(!gui)
     {
@@ -140,10 +123,6 @@ int main(int argc, char *argv[])
       double dt = 0.01f;
       double smoothAmount = 0.001f;
       int max_iter = 10;
-      // std::string input_mesh = "../test_data/bunny.off";
-      // srep_init *init = new srep_init(dt, smoothAmount, max_iter);
-
-      // igl::readOFF(input_mesh, V, F);
 
       // Add content to the default menu window
       menu.callback_draw_viewer_menu = [&]()

@@ -47,29 +47,6 @@
 #include <vtkPointSet.h>
 #include <vtkTransformFilter.h>
 
-srep_init::srep_init(double d, double smooth, int max)
-{
-  this->dt = d;
-  this->smoothAmount = smooth;
-  this->max_iter = max;
-  if (output_folder != "" && !vtksys::SystemTools::FileExists(output_folder, false))
-  {
-    if (!vtksys::SystemTools::MakeDirectory(output_folder))
-    {
-      std::cout << "Failed to create folder : " << output_folder << std::endl;
-    }
-  }
-
-  std::string forward_folder(output_folder);
-  forward_folder += "forward/";
-  if (!vtksys::SystemTools::FileExists(forward_folder, false))
-  {
-    if (!vtksys::SystemTools::MakeDirectory(forward_folder))
-    {
-      std::cout << "Failed to create folder : " << forward_folder << std::endl;
-    }
-  }
-};
 
 srep_init::srep_init(std::string inMesh, std::string outFolder, int nRows, int nCols, double d, double smooth, double tolerance, double elasticity, int samplingDensity, int max)
 {
@@ -83,6 +60,14 @@ srep_init::srep_init(std::string inMesh, std::string outFolder, int nRows, int n
   this->sampling_density = samplingDensity;
   this->max_iter = max;
   this->elasticity = elasticity;
+
+  this->best_fitting_ellipsoid_polydata = vtkSmartPointer<vtkPolyData>::New();
+  this->up_mesh   = vtkSmartPointer<vtkCellArray>::New();
+  this->down_mesh   = vtkSmartPointer<vtkCellArray>::New();
+  this->crest_mesh   = vtkSmartPointer<vtkCellArray>::New();
+  this->backflow_upPoints = vtkSmartPointer<vtkPoints>::New();
+  this->backflow_downPoints = vtkSmartPointer<vtkPoints>::New();
+  this->backflow_crestPoints = vtkSmartPointer<vtkPoints>::New();
   if (output_folder != "" && !vtksys::SystemTools::FileExists(output_folder, false))
   {
     if (!vtksys::SystemTools::MakeDirectory(output_folder))
@@ -100,24 +85,29 @@ srep_init::srep_init(std::string inMesh, std::string outFolder, int nRows, int n
       std::cout << "Failed to create folder : " << forward_folder << std::endl;
     }
   }
+  std::string intermediate_steps_folder(output_folder);
+  intermediate_steps_folder += "backward/";
+  if (!vtksys::SystemTools::FileExists(intermediate_steps_folder, false))
+  {
+    if (!vtksys::SystemTools::MakeDirectory(intermediate_steps_folder))
+    {
+      std::cout << "Failed to create folder : " << intermediate_steps_folder << std::endl;
+    }
+  }
+};
+
+srep_init::~srep_init()
+{
+  // SmartPointers get rid of themselves. Supposedly...'
+  // Even following vtk recommended practices for allocating/freeing objects, we still have memory leaks. I suspect this is just because of the implementation of some of the functions within vtk.
 };
 
 int srep_init::set_mesh(Eigen::MatrixXd V, Eigen::MatrixXi F)
 {
-  // Eigen::VectorXi J;
-  // Eigen::MatrixXd W;
-  // Eigen::MatrixXi G;
-  // igl::decimate(V, F, 2000, W, G, J);
-  // this->V = W;
-  // this->F = G;
-  // this->U = W;
-  // igl::cotmatrix(W,G,this->L);
-
   this->V = V;
   this->F = F;
   this->U = V;
   igl::cotmatrix(V,F,this->L);
-
 };
 
 int srep_init::update_viewer(igl::opengl::glfw::Viewer *viewer)
@@ -679,61 +669,6 @@ int srep_init::generate_ellipsoid_srep()
     int id0 = foldCurve_pts->InsertNextPoint(cx_t, cy_t, cz_t);
 
 
-    // if(id0 > 0)
-    // {
-    //     // first row
-    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-    //     fold_seg->GetPointIds()->SetId(0, id0-1);
-    //     fold_seg->GetPointIds()->SetId(1, id0);
-    //     fold_curve->InsertNextCell(fold_seg);
-    // }
-    // vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-    // fold_seg->GetPointIds()->SetId(0, id0);
-    // fold_seg->GetPointIds()->SetId(1, 0);
-    // fold_curve->InsertNextCell(fold_seg);
-
-    // if(i > nCols && i < nCols + 2*(nRows-2) + 1 && (i-nCols) % 2 == 1)
-    // {
-    //     // right side of crest
-    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-    //     fold_seg->GetPointIds()->SetId(0, id0-2);
-    //     fold_seg->GetPointIds()->SetId(1, id0);
-    //     fold_curve->InsertNextCell(fold_seg);
-    // }
-    // if(i > nCols && i < nCols + 2*(nRows-2) + 1 && (i-nCols) % 2 == 0)
-    // {
-    //     // part of left side
-    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-    //     fold_seg->GetPointIds()->SetId(0, id0-2);
-    //     fold_seg->GetPointIds()->SetId(1, id0);
-    //     fold_curve->InsertNextCell(fold_seg);
-    // }
-    //
-    // if(i == nCols)
-    // {
-    //     // remaining part of left side
-    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-    //     fold_seg->GetPointIds()->SetId(0, 0);
-    //     fold_seg->GetPointIds()->SetId(1, id0);
-    //     fold_curve->InsertNextCell(fold_seg);
-    // }
-    // if(i > nCols + 2*(nRows-2))
-    // {
-    //     //bottom side
-    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-    //     fold_seg->GetPointIds()->SetId(0, id0-1);
-    //     fold_seg->GetPointIds()->SetId(1, id0);
-    //     fold_curve->InsertNextCell(fold_seg);
-    // }
-    // if(i == nCrestPoints - 1)
-    // {
-    //     // bottome right
-    //     vtkSmartPointer<vtkLine> fold_seg = vtkSmartPointer<vtkLine>::New();
-    //     fold_seg->GetPointIds()->SetId(0, id0-nCols);
-    //     fold_seg->GetPointIds()->SetId(1, id0);
-    //     fold_curve->InsertNextCell(fold_seg);
-    // }
-
     vtkVector3d crestSpoke(cx_b-cx_t, cy_b-cy_t, cz_b-cz_t);
     double crestSpokeLength = crestSpoke.Normalize();
 
@@ -1003,13 +938,6 @@ int srep_init::backward_flow()
   //Folder to output flowed mesh at each step for sanity check
   std::string intermediate_steps_folder(output_folder);
   intermediate_steps_folder += "backward/";
-  if (!vtksys::SystemTools::FileExists(intermediate_steps_folder, false))
-  {
-    if (!vtksys::SystemTools::MakeDirectory(intermediate_steps_folder))
-    {
-      std::cout << "Failed to create folder : " << intermediate_steps_folder << std::endl;
-    }
-  }
 
 
   vtkSmartPointer<vtkPolyDataReader> targetSurfaceReader = vtkSmartPointer<vtkPolyDataReader>::New();
@@ -1122,7 +1050,7 @@ int srep_init::backward_flow()
   igl::per_vertex_normals(source_V,this->F, source_N);
 
   // now get principal curvatures for each point via quadratic fitting
-  // (more robust than descrete curvature calculation)
+  // (more robust than discrete curvature calculation)
   // and compute mean curvature
   Eigen::VectorXd PV1,PV2;   // Curvature
   Eigen::MatrixXd PD1,PD2;   // Curvature direction
@@ -1304,19 +1232,24 @@ int srep_init::backward_flow()
     // then write to file
     this->write_srep(stepNum);
 
+
+    // Old method: used deformed source landmarks as new source landmarks to ensure more precise transform at each step. May cause numeric instabilities due to repeated application of inexact tps transformations
     //Deforming the source landmark points for the next iteration
-    vtkSmartPointer<vtkTransformPolyDataFilter> landmark_transformFilter =
-    vtkSmartPointer<vtkTransformPolyDataFilter>::New();
-    landmark_transformFilter->SetTransform(tps);
+    // vtkSmartPointer<vtkTransformPolyDataFilter> landmark_transformFilter =
+    // vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+    // landmark_transformFilter->SetTransform(tps);
+    //
+    // vtkSmartPointer<vtkPoints> temp_points = vtkSmartPointer<vtkPoints>::New();
+    // temp_points->DeepCopy(source_landmarks);
+    // vtkSmartPointer<vtkPolyData> landmark_poly = vtkSmartPointer<vtkPolyData>::New();
+    // landmark_poly->SetPoints(temp_points);
+    //
+    // landmark_transformFilter->SetInputData(landmark_poly);
+    // landmark_transformFilter->Update();
+    // source_landmarks->DeepCopy(landmark_transformFilter->GetOutput()->GetPoints());
 
-    vtkSmartPointer<vtkPoints> temp_points = vtkSmartPointer<vtkPoints>::New();
-    temp_points->DeepCopy(source_landmarks);
-    vtkSmartPointer<vtkPolyData> landmark_poly = vtkSmartPointer<vtkPolyData>::New();
-    landmark_poly->SetPoints(temp_points);
-
-    landmark_transformFilter->SetInputData(landmark_poly);
-    landmark_transformFilter->Update();
-    source_landmarks->DeepCopy(landmark_transformFilter->GetOutput()->GetPoints());
+    // New method: use current target landmarks as new source landmarks. Hope that the deformation is good enough. May be more stable?
+    source_landmarks = target_landmarks;
   }
 
   return 0;

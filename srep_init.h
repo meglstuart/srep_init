@@ -14,8 +14,8 @@
 class srep_init
 {
 public:
-  srep_init(double d, double smooth, int max);
   srep_init(std::string inMesh, std::string outFolder, int nRows, int nCols, double d, double smooth, double tolerance, double elasticity, int samplingDensity, int max);
+  ~srep_init();
   int set_mesh(Eigen::MatrixXd V, Eigen::MatrixXi F);
   int step_forwardflow();
   int update_viewer(igl::opengl::glfw::Viewer *);
@@ -34,7 +34,7 @@ public:
   int sampling_density;
   double elasticity;
   double tol;
-  std::string output_folder = "";
+  std::string output_folder;
   int iter = 0;
   double q=1;
   std::string input_mesh;
@@ -47,14 +47,14 @@ public:
   Eigen::SparseMatrix<double> L;   //Discrete laplacian cotangent stiffness matrix
   Eigen::MatrixXd ell_U;        //ellipsoid mesh vertices
   Eigen::MatrixXi ell_F;        //ellipsoid mesh faces
-  vtkSmartPointer<vtkPolyData> best_fitting_ellipsoid_polydata = vtkSmartPointer<vtkPolyData>::New();
+  vtkSmartPointer<vtkPolyData> best_fitting_ellipsoid_polydata;
   // srep spoke hub and boundary points and connectivity info for use in backflow
-  vtkSmartPointer<vtkCellArray> up_mesh   = vtkSmartPointer<vtkCellArray>::New();
-  vtkSmartPointer<vtkCellArray> down_mesh   = vtkSmartPointer<vtkCellArray>::New();
-  vtkSmartPointer<vtkCellArray> crest_mesh   = vtkSmartPointer<vtkCellArray>::New();
-  vtkSmartPointer<vtkPoints> backflow_upPoints = vtkSmartPointer<vtkPoints>::New();
-  vtkSmartPointer<vtkPoints> backflow_downPoints = vtkSmartPointer<vtkPoints>::New();
-  vtkSmartPointer<vtkPoints> backflow_crestPoints = vtkSmartPointer<vtkPoints>::New();
+  vtkSmartPointer<vtkCellArray> up_mesh;
+  vtkSmartPointer<vtkCellArray> down_mesh;
+  vtkSmartPointer<vtkCellArray> crest_mesh;
+  vtkSmartPointer<vtkPoints> backflow_upPoints;
+  vtkSmartPointer<vtkPoints> backflow_downPoints;
+  vtkSmartPointer<vtkPoints> backflow_crestPoints;
 
 };
 

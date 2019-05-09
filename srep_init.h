@@ -22,7 +22,7 @@ public:
   int fit_ellipsoid(vtkSmartPointer<vtkPolyData> polydata_smooth, int);
   int write_ellipsoid();
   int generate_ellipsoid_srep();
-  int write_header(int);
+  int write_header(std::string);
   int write_srep(int);
   int backward_flow();
 

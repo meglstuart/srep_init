@@ -176,6 +176,10 @@ int srep_init::step_forwardflow()
     writer->SetFileName(init_file.c_str());
     writer->SetInputData(polydata);
     writer->Update();
+    std::string ref_file = output_folder + "aligned_mesh_for_refinement.vtk";
+    writer->SetFileName(ref_file.c_str());
+    writer->SetInputData(polydata);
+    writer->Update();
   }
 
   sprintf(temp,"%d", ++iter);
@@ -364,7 +368,7 @@ int srep_init::generate_ellipsoid_srep()
   }
 
   // write header to file
-  write_header(iter+1);
+  write_header(srep_folder+std::to_string(iter+1));
 
   double rz = radii(0);
   double ry = radii(1);
@@ -749,7 +753,7 @@ int srep_init::generate_ellipsoid_srep()
   return 0;
 };
 
-int srep_init::write_header(int prefix)
+int srep_init::write_header(std::string  model_prefix)
 {
   std::stringstream output;
 
@@ -768,8 +772,8 @@ int srep_init::write_header(int prefix)
   output<<"  <crestSpoke>crest.vtp</crestSpoke>"<<std::endl;
   output<<"</s-rep>"<<std::endl;
 
-  std::string header_file(output_folder);
-  header_file = header_file + "model/" + std::to_string(prefix) + "/header.xml";
+  std::string header_file(model_prefix);
+  header_file = header_file + "/header.xml";
   std::ofstream out_file;
   out_file.open(header_file);
   out_file << output.rdbuf();
@@ -779,11 +783,20 @@ int srep_init::write_header(int prefix)
 int srep_init::write_srep(int prefix)
 {
   std::string srep_folder(output_folder);
-  srep_folder += "model/";
+  if(prefix!=1)
+  {
+    srep_folder += "model/";
+  }
 
   // create folder for srep model. vtksys tool is OS independant
   std::string model_prefix(srep_folder);
-  model_prefix+= std::to_string(prefix);
+  if(prefix!=1)
+  {
+    model_prefix+= std::to_string(prefix);
+  }else
+  {
+    model_prefix+="inital_srep";
+  }
   if (!vtksys::SystemTools::FileExists(model_prefix, false))
   {
     if (!vtksys::SystemTools::MakeDirectory(model_prefix))
@@ -792,7 +805,7 @@ int srep_init::write_srep(int prefix)
     }
   }
 
-  write_header(prefix);
+  write_header(model_prefix);
 
   std::string upFileName(model_prefix);
   upFileName  += "/up.vtp";

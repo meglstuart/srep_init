@@ -26,3 +26,5 @@ make
 ## Usage
 Use `./srep_init --help` for full listing of options.
 There is a (pretty incomplete) GUI that you can use with `./srep_init -g`, but for most usability I recommend the CLI
+
+The generated srep is in `<output_folder>/initial_srep/` and the input mesh transformed to the same coordinate system is in `<output_folder>/aligned_mesh_for_refinement.vtk`.
